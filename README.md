@@ -26,6 +26,7 @@ The release cited in the revised manuscript is tag **`v2.0-revision`**.
 | `revision_backtest/runs/v3_train_only/results/` | Summary tables (`*.csv`, `*.tex`), `evaluations.tar.gz` (daily trajectory, trades, metrics, and receipt of all 492 policy evaluations: 96 trained policies × cost settings), and `nonrl.tar.gz` (equal-weight and Ridge baselines). Daily position files (about 1 GB) and policy checkpoints (about 2.4 GB) are not included; they are available from the corresponding author on request. |
 | `bank sectordata/`, `haelthcaresectordata/` | Inputs used by the revised pipeline: Tushare daily panels (`*trade20241231.CSV`), relation matrices (`*.npy`), valuation-ratio tensors, and the archived 2022 forecaster outputs for variants A0–A9 (`ablation*/finrl_csv/`). Folder names are kept as the code expects them. |
 | `notebooks/` | Forecasting and RL notebooks used in the revision, including the original eight-run MGT notebook, the revised (chronological, MSE) forecaster and ablation notebook, and the banking Kendall-graph notebook. |
+| `forecaster_runs/` | `forecaster_runs.tar.gz`: per-seed predictions (scaled and, for healthcare, in prices), targets, training histories, and test errors of the revised forecaster for variants A0–A9 (seeds 1–3, both sectors). The forecaster outputs in `ablation*/finrl_csv/` are the average of the three seeds' predictions. |
 | `analysis/` | Scripts that produce the revised tables and figures from the stored outputs (`boot_all.py`, `tables.py`, `fig_nav_small.py`, `fc_metrics_full.py`, `verify_inputs.py`) and their outputs. |
 | `logs/` | Text dumps of the archived notebooks with their recorded outputs. |
 
@@ -40,7 +41,7 @@ The release cited in the revised manuscript is tag **`v2.0-revision`**.
 
 ## Notes on the forecasting module (see Section 6.3 of the revised manuscript)
 
-- MGT predicts the **same-day closing price** of each stock from the same day's PE-TTM, PB, PS, and PCF (input window of one day). The ratios are computed from that day's close, so the forecast horizon is zero.
+- Each MGT model predicts one price series of the **same day** for all stocks from that day's PE-TTM, PB, PS, and PCF (input window of one day). The ratios are computed from that day's close, so the forecast horizon is zero. The archived code and outputs are those of the closing-price model; the RL experiments replace only the 2022 closing prices.
 - The forecasting comparison of the original submission (eight runs, random split of trading days, cross-entropy training) could not be reproduced from the archived notebooks and is withdrawn.
 - The 2022 outputs used in the RL experiments come from the revised implementation in `notebooks/GNNtransformerbankclosenew-8RUNS消融_FIXED.ipynb` (MSE loss; training 2018-01-02 to 2021-03-18, early stopping to 2021-12-31, test 2022). `analysis/fc_metrics_full.py` evaluates them against observed prices (manuscript Table 2).
 
