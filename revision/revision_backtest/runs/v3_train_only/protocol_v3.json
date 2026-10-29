@@ -1,0 +1,127 @@
+{
+  "protocol_id": "v3_train_only_unadjusted_price_cost",
+  "accounting_scope": "unadjusted_price_cost_sensitivity",
+  "result_status": "cost_analysis_scope_limited",
+  "economic_return_validated": false,
+  "input_manifest_sha256": "e7d0a5be2519c586f0542eee49ba5322baa2d7c095f1c1b4104ba83a09fa2bb4",
+  "environment_sha256": "ecbba4dd05f3bd89011639490c5be04742070583c422950d6869579a31c7cb58",
+  "code": {
+    "run_revision_v3.py": "02e0c19f7629aa4fc39b29591b89f3ea79568921e583c75ebbab9d4de5811d05",
+    "v3_audit.py": "686a3f8696896314b79a1f4e74e60357f44c5fc4a57d1e3701bca36c3aa1e142",
+    "v3_data.py": "e16a99a3972b948e0d1c874cc19b884a925d8bb6808cd4c38c80f0aa61253cf3",
+    "v3_ledger.py": "474f999052f1dee31d21f8e2a86e853059322d91f0b44808873bc0c55ea6f187",
+    "v3_engine.py": "ad26bccd3cf188ac2c67c2d2d1debdf30a030758d077f6740ca5a0a2951c27c3",
+    "v3_reports.py": "15d4d5823223c017b0296bc078ded23697f21a30716dddd738a49806bd4a2a3e",
+    "test_v3.py": "bbc6dd2855ec934b33f5499f8d7e2ed93d929d58828240781acf6a0c2645ce92",
+    "backtest.py": "36073ebd5d45343d701338ce1dbb4ed94e5fd0feef53bbacd73bf2aab4f32a31",
+    "v2_data.py": "5331dc25d560dede8ad397f8d12d45a8f90ff169f7574f5bb78fe6173c5fd1c7",
+    "v2_audit.py": "b15dbcfa8c5dda7e427b7e6f5a9e9ea63260cc5524602ec7ebdd2a1cbe651e29"
+  },
+  "initial_amount": 1000000,
+  "reward_scaling": 0.1,
+  "steps": {
+    "a2c": 40000,
+    "ppo": 40000,
+    "sac": 60000,
+    "td3": 30000,
+    "ddpg": 50000
+  },
+  "model_params": {
+    "a2c": {
+      "n_steps": 10,
+      "ent_coef": 0.005,
+      "learning_rate": 0.0004
+    },
+    "ppo": {
+      "n_steps": 2048,
+      "ent_coef": 0.005,
+      "learning_rate": 0.001,
+      "batch_size": 128
+    },
+    "sac": {
+      "batch_size": 128,
+      "buffer_size": 1000000,
+      "learning_rate": 0.0001,
+      "learning_starts": 100,
+      "ent_coef": "auto_0.1"
+    },
+    "td3": {
+      "batch_size": 100,
+      "buffer_size": 1000000,
+      "learning_rate": 0.001
+    },
+    "ddpg": {}
+  },
+  "splits": {
+    "train": [
+      "2022-01-01",
+      "2022-12-31"
+    ],
+    "validation": [
+      "2023-01-01",
+      "2023-12-31"
+    ],
+    "test": [
+      "2024-01-01",
+      "2024-12-31"
+    ]
+  },
+  "augmentation_scope": "2022 train observations only",
+  "warmup": "pre2022 raw for all training; full independently raw history for validation/test",
+  "state": "N x N return covariance plus macd/rsi_30/cci_30/dx_30; same N+4 x N dimensions",
+  "market_accounting": "raw Tushare unadjusted close in all stages; no dividend/split events supplied; fixed fractional units",
+  "checkpoint_rule": "20/40/60/80/100% of rollout-rounded target; 2023 raw F1 net SR; earliest tie",
+  "execution": "t close decision, t+1 actual raw close execution; initial all cash; no terminal liquidation",
+  "phase1": [
+    [
+      "bank",
+      "a2c"
+    ],
+    [
+      "healthcare",
+      "sac"
+    ],
+    [
+      "healthcare",
+      "ppo"
+    ]
+  ],
+  "algorithms": [
+    "a2c",
+    "ppo",
+    "sac",
+    "td3",
+    "ddpg"
+  ],
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "ablation": [
+    "A1",
+    "A2",
+    "A6",
+    "A7",
+    "A8",
+    "A9"
+  ],
+  "cap": 96,
+  "ridge": {
+    "alpha": 1.0,
+    "k": 3,
+    "target": "raw close[t+2]/raw close[t+1]-1; labels entirely in2022",
+    "fit_scaler": "training rows only"
+  },
+  "bootstrap": {
+    "blocks": [
+      10,
+      5,
+      20
+    ],
+    "B": 2000,
+    "seed": 1729
+  },
+  "forecast_provenance": "Frozen outputs; graph/scaler cutoffs unknown where not recorded. Bank observed full forecaster source2018-2022 is training-period information, not alone proof of2023/24 RL contamination.",
+  "test_seen": "2024 previously examined; fixed historical evaluation"
+}

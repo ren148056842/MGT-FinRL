@@ -1,0 +1,11 @@
+          task               experiment    status  actual_steps  seconds                                                          reason
+ synthetic_A2C synthetic_interface_only completed            32 0.120278 Synthetic market + fixture state; not a scientific training run
+ synthetic_PPO synthetic_interface_only completed            32 0.117953 Synthetic market + fixture state; not a scientific training run
+ synthetic_SAC synthetic_interface_only completed            32 0.231930 Synthetic market + fixture state; not a scientific training run
+ synthetic_TD3 synthetic_interface_only completed            32 0.174596 Synthetic market + fixture state; not a scientific training run
+synthetic_DDPG synthetic_interface_only completed            32 0.177334 Synthetic market + fixture state; not a scientific training run
+      date decision_date    nav   cash    buy  sell  daily_return
+2024-01-02           NaN 1000.0 1000.0    0.0   0.0           NaN
+2024-01-03    2024-01-02 1000.0    0.0 1000.0   0.0           0.0
+2024-01-04    2024-01-03 2000.0    0.0    0.0   0.0           1.0
+2024-01-05    2024-01-04 1000.0    0.0    0.0   0.0          -0.5

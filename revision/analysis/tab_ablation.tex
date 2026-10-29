@@ -1,0 +1,24 @@
+\begin{table}[!t]\centering\small\color{blue}
+\caption{Representation ablations at a fixed, prespecified policy (PPO) with fixed hyperparameters, three paired seeds, and the baseline cost setting F1. Each variant changes only the 2022 training observations; validation and evaluation inputs are identical across rows. Values are mean $\pm$ s.d. over seeds; AR and MDD in \%.}
+\label{tab:ablation_ppo}
+\begin{tabular}{llrrr}\toprule
+Sector & Training input & AR (\%) & SR & MDD (\%) \\ \midrule
+Banking & Vanilla (observed prices) & 34.13 $\pm$ 0.42 & 1.642 $\pm$ 0.019 & 10.67 $\pm$ 0.10 \\
+ & A0 Full MGT & 34.15 $\pm$ 0.46 & 1.651 $\pm$ 0.020 & 10.76 $\pm$ 0.13 \\
+ & A1 Transformer-only & 34.00 $\pm$ 0.65 & 1.645 $\pm$ 0.027 & 10.75 $\pm$ 0.10 \\
+ & A2 MGNN-only & 34.19 $\pm$ 0.80 & 1.642 $\pm$ 0.032 & 10.68 $\pm$ 0.10 \\
+ & A6 SH+QA (no KD) & 33.38 $\pm$ 1.09 & 1.619 $\pm$ 0.048 & 10.68 $\pm$ 0.04 \\
+ & A7 SH+KD (no QA) & 34.11 $\pm$ 0.18 & 1.644 $\pm$ 0.007 & 10.76 $\pm$ 0.25 \\
+ & A8 QA+KD (no SH) & 33.99 $\pm$ 0.09 & 1.640 $\pm$ 0.006 & 10.77 $\pm$ 0.10 \\
+ & A9 Fixed fusion & 33.12 $\pm$ 1.09 & 1.601 $\pm$ 0.046 & 10.69 $\pm$ 0.16 \\
+\midrule
+Healthcare & Vanilla (observed prices) & -20.98 $\pm$ 2.06 & -0.374 $\pm$ 0.063 & 37.65 $\pm$ 1.33 \\
+ & A0 Full MGT & -20.32 $\pm$ 1.41 & -0.360 $\pm$ 0.045 & 36.82 $\pm$ 0.63 \\
+ & A1 Transformer-only & -19.32 $\pm$ 0.51 & -0.324 $\pm$ 0.016 & 36.18 $\pm$ 0.22 \\
+ & A2 MGNN-only & -20.86 $\pm$ 0.97 & -0.369 $\pm$ 0.030 & 36.85 $\pm$ 0.70 \\
+ & A6 SH+QA (no KD) & -19.79 $\pm$ 0.23 & -0.338 $\pm$ 0.006 & 36.19 $\pm$ 0.29 \\
+ & A7 SH+KD (no QA) & -19.70 $\pm$ 0.86 & -0.338 $\pm$ 0.027 & 36.56 $\pm$ 0.49 \\
+ & A8 QA+KD (no SH) & -20.04 $\pm$ 0.91 & -0.348 $\pm$ 0.028 & 36.78 $\pm$ 0.46 \\
+ & A9 Fixed fusion & -18.15 $\pm$ 1.85 & -0.288 $\pm$ 0.053 & 35.81 $\pm$ 1.66 \\
+\bottomrule
+\end{tabular}\end{table}

@@ -1,0 +1,21 @@
+test_bootstrap_paired_shared_indices (test_backtest.LedgerTests) ... ok
+test_cash_conservation_random (test_backtest.LedgerTests) ... ok
+test_drift_turnover (test_backtest.LedgerTests) ... ok
+test_execution_delay (test_backtest.LedgerTests) ... ok
+test_features_change_actions_without_changing_execution_price (test_backtest.LedgerTests) ... ok
+test_initial_buy_and_fee_once (test_backtest.LedgerTests) ... ok
+test_long_only_no_leverage_or_double_day (test_backtest.LedgerTests) ... ok
+test_metrics_include_initial_capital (test_backtest.LedgerTests) ... ok
+test_no_fill_missing_prices (test_backtest.LedgerTests) ... ok
+test_no_trade_no_fee (test_backtest.LedgerTests) ... ok
+test_real_price_isolation (test_backtest.LedgerTests) ... ok
+test_sell_tax_date (test_backtest.LedgerTests) ... ok
+test_splits_reject_overlap (test_backtest.LedgerTests) ... ok
+test_terminal_no_free_liquidation (test_backtest.LedgerTests) ... ok
+test_tradability_mask_and_lots (test_backtest.LedgerTests) ... ok
+test_unknown_forecasts_rejected (test_backtest.LedgerTests) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.167s
+
+OK

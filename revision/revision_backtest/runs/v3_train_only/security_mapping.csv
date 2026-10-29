@@ -1,0 +1,31 @@
+﻿sector,raw_tic,tic,name_from_table,author_name,source,market_source,mapping_note,listing_date
+bank,ABC,ABC,农业银行,,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,distinct alias preserved,
+bank,BOC,BOC,中国银行,,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,distinct alias preserved,
+bank,BOCOM,BOCOM,交通银行,,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,distinct alias preserved,
+bank,CCB,CCB,建设银行,,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,distinct alias preserved,
+bank,CEB,CEB,光大银行,,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,distinct alias preserved,
+bank,CIB,CIB,兴业银行,,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,distinct alias preserved,
+bank,CMB,CMB,招商银行,招商银行,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,distinct alias preserved,
+bank,CMBC,CMBC,民生银行,民生银行,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,distinct alias preserved,
+bank,CZB,CZB,浙商银行,,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,distinct alias preserved,
+bank,ECITIC,ECITIC,中信银行,,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,distinct alias preserved,
+bank,HXB,HXB,华夏银行,,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,distinct alias preserved,
+bank,ICBC,ICBC,工商银行,,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,distinct alias preserved,
+bank,PAD,PAB,平安银行,平安银行,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,PAD/PAB same entity,
+bank,PSBC,PSBC,邮政储蓄,,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,distinct alias preserved,
+bank,SPDB,SPDB,浦发银行,,bankcloseshizhi NAME/name columns; Wind auxiliary only,Tushare author_confirmed; unadjusted,distinct alias preserved,
+healthcare,002044.SZ,002044.SZ,美年健康,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,2005-05-18
+healthcare,002173.SZ,002173.SZ,创新医疗,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,2007-09-25
+healthcare,002219.SZ,002219.SZ,新里程,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,2008-03-06
+healthcare,002524.SZ,002524.SZ,光正眼科,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,2010-12-17
+healthcare,300015.SZ,300015.SZ,爱尔眼科,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,2009-10-30
+healthcare,300143.SZ,300143.SZ,盈康生命,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,2010-12-09
+healthcare,300149.SZ,300149.SZ,睿智医药,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,2010-12-22
+healthcare,300244.SZ,300244.SZ,迪安诊断,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,2011-07-19
+healthcare,300347.SZ,300347.SZ,泰格医药,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,2012-08-17
+healthcare,300404.SZ,300404.SZ,博济医药,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,2015-04-24
+healthcare,600645.SH,600645.SH,中源协和,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,1993-05-04
+healthcare,600721.SH,600721.SH,百花医药,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,1996-06-26
+healthcare,600763.SH,600763.SH,通策医疗,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,1996-10-30
+healthcare,603127.SH,603127.SH,昭衍新药,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,2017-08-25
+healthcare,603882.SH,603882.SH,金域医学,,tech.csv (Wind auxiliary table),Tushare author_confirmed; unadjusted,,2017-09-08

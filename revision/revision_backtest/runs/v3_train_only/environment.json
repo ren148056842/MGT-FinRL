@@ -1,0 +1,17 @@
+{
+  "executable": "C:\\Users\\perfe\\.conda\\envs\\finrl-meta\\python.exe",
+  "python": "3.8.16 (default, Jun 12 2023, 21:00:42) [MSC v.1916 64 bit (AMD64)]",
+  "packages": {
+    "finrl": "0.3.4",
+    "stable-baselines3": "2.4.0",
+    "torch": "2.0.1",
+    "gym": "0.21.0",
+    "gymnasium": "1.0.0",
+    "numpy": "1.23.1",
+    "pandas": "1.4.3",
+    "stockstats": "0.4.1",
+    "scikit-learn": "1.1.1"
+  },
+  "device": "cpu",
+  "threads": 1
+}
