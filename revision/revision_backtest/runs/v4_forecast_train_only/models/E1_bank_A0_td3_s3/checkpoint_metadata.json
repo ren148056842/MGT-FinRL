@@ -1,0 +1,59 @@
+{
+  "task": {
+    "task_id": "E1_bank_A0_td3_s3",
+    "sector": "bank",
+    "variant": "A0",
+    "algorithm": "td3",
+    "seed": 3,
+    "steps": 30000,
+    "phase": 2,
+    "fees": [
+      "F0",
+      "F1",
+      "F2",
+      "F3",
+      "F4",
+      "F5",
+      "F6"
+    ]
+  },
+  "formal": true,
+  "paper_eligible": false,
+  "accounting_scope": "unadjusted_price_cost_sensitivity",
+  "result_status": "cost_analysis_scope_limited",
+  "economic_return_validated": false,
+  "num_timesteps": 30000,
+  "requested_steps": 30000,
+  "rounded_budget": 30000,
+  "rollout_steps": 1,
+  "train_seconds": 1060.9034970000002,
+  "validation_selection": "net Sharpe F1, fixed thresholds; earliest tie",
+  "selected_checkpoint": "checkpoint_024000.zip",
+  "checkpoint_sha256": "831990c2bf7b998a730e97c88498de534efc5fce8d320d2fe0efaf64550694a1",
+  "algorithm_parameters": {
+    "batch_size": 100,
+    "buffer_size": 1000000,
+    "learning_rate": 0.001,
+    "seed": 3,
+    "device": "cpu",
+    "verbose": 0
+  },
+  "actual_gamma": 0.99,
+  "policy": "TD3Policy(\n  (actor): Actor(\n    (features_extractor): FlattenExtractor(\n      (flatten): Flatten(start_dim=1, end_dim=-1)\n    )\n    (mu): Sequential(\n      (0): Linear(in_features=285, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=15, bias=True)\n      (5): Tanh()\n    )\n  )\n  (actor_target): Actor(\n    (features_extractor): FlattenExtractor(\n      (flatten): Flatten(start_dim=1, end_dim=-1)\n    )\n    (mu): Sequential(\n      (0): Linear(in_features=285, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=15, bias=True)\n      (5): Tanh()\n    )\n  )\n  (critic): ContinuousCritic(\n    (features_extractor): FlattenExtractor(\n      (flatten): Flatten(start_dim=1, end_dim=-1)\n    )\n    (qf0): Sequential(\n      (0): Linear(in_features=300, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=1, bias=True)\n    )\n    (qf1): Sequential(\n      (0): Linear(in_features=300, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=1, bias=True)\n    )\n  )\n  (critic_target): ContinuousCritic(\n    (features_extractor): FlattenExtractor(\n      (flatten): Flatten(start_dim=1, end_dim=-1)\n    )\n    (qf0): Sequential(\n      (0): Linear(in_features=300, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=1, bias=True)\n    )\n    (qf1): Sequential(\n      (0): Linear(in_features=300, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=1, bias=True)\n    )\n  )\n)",
+  "observation_shape": [
+    19,
+    15
+  ],
+  "action_mapping": "float64 stable softmax [-1,1] outputs to long-only simplex",
+  "reward": "net daily return*.1",
+  "episode_transitions": 241,
+  "train_dates": [
+    "2022-01-04",
+    "2022-12-30"
+  ],
+  "validation_dates": [
+    "2023-01-03",
+    "2023-12-29"
+  ],
+  "test_dates_not_evaluated": true
+}

@@ -1,0 +1,146 @@
+{
+  "protocol_id": "v4_forecast_train_only_unadjusted_price_cost",
+  "accounting_scope": "unadjusted_price_cost_sensitivity",
+  "result_status": "cost_analysis_scope_limited",
+  "economic_return_validated": false,
+  "input_manifest_sha256": "19c47f5defd0c29685cef1a705ccf98308d6fe1a285c1aeb30e507b2e575ff7d",
+  "environment_sha256": "ecbba4dd05f3bd89011639490c5be04742070583c422950d6869579a31c7cb58",
+  "code": {
+    "run_revision_v4.py": "a3973f019fd77ffb1373505799d5832fde6e45bb1038de89b7cd4927779230c8",
+    "v4_audit.py": "a68b63294e6c1626da7ac8bc8df78288a052f01cd1d0410789f2394836d11373",
+    "v4_data.py": "80374579dda791ae2bd229c12908923faafe57c783d33f24ce5bc8ca38014440",
+    "v3_data.py": "e16a99a3972b948e0d1c874cc19b884a925d8bb6808cd4c38c80f0aa61253cf3",
+    "v3_ledger.py": "474f999052f1dee31d21f8e2a86e853059322d91f0b44808873bc0c55ea6f187",
+    "v4_engine.py": "3991ac5dd64692a995cc5e4903b172a61758dbf0281de80f71fbe1ce664091fb",
+    "v4_reports.py": "da52544e6a1bc5aee89400acb862c64fc621e385f455c8c5cc1fc99d434155bb",
+    "test_v4.py": "e4c116bfe43233b3b10d5d7d5e2741c5a451717dfaf05e9f4a702f3254e36565",
+    "backtest.py": "36073ebd5d45343d701338ce1dbb4ed94e5fd0feef53bbacd73bf2aab4f32a31",
+    "v2_data.py": "5331dc25d560dede8ad397f8d12d45a8f90ff169f7574f5bb78fe6173c5fd1c7",
+    "v2_audit.py": "b15dbcfa8c5dda7e427b7e6f5a9e9ea63260cc5524602ec7ebdd2a1cbe651e29",
+    "v2_engine.py": "fbc4517ca8cee162194c4b59fdd83a5d6af03a184661b672371bde5518d178f6",
+    "forecaster/fc_data.py": "2f03ba190abce39598ff42012852e5220665be61734f6cc1b2f01cf62ede3cd6",
+    "forecaster/fc_models.py": "2c60562a87eaae77fc535f4cd4ca161d7db72e115120710d42caad48bd0e81bd",
+    "forecaster/fc_run.py": "d564178cf9db79f66691f42b2a117385e7ace4ee1637267d91e6300d27817ead"
+  },
+  "initial_amount": 1000000,
+  "reward_scaling": 0.1,
+  "steps": {
+    "a2c": 40000,
+    "ppo": 40000,
+    "sac": 60000,
+    "td3": 30000,
+    "ddpg": 50000
+  },
+  "model_params": {
+    "a2c": {
+      "n_steps": 10,
+      "ent_coef": 0.005,
+      "learning_rate": 0.0004
+    },
+    "ppo": {
+      "n_steps": 2048,
+      "ent_coef": 0.005,
+      "learning_rate": 0.001,
+      "batch_size": 128
+    },
+    "sac": {
+      "batch_size": 128,
+      "buffer_size": 1000000,
+      "learning_rate": 0.0001,
+      "learning_starts": 100,
+      "ent_coef": "auto_0.1"
+    },
+    "td3": {
+      "batch_size": 100,
+      "buffer_size": 1000000,
+      "learning_rate": 0.001
+    },
+    "ddpg": {}
+  },
+  "splits": {
+    "train": [
+      "2022-01-01",
+      "2022-12-31"
+    ],
+    "validation": [
+      "2023-01-01",
+      "2023-12-31"
+    ],
+    "test": [
+      "2024-01-01",
+      "2024-12-31"
+    ]
+  },
+  "augmentation_scope": "2022 train observations only",
+  "warmup": "pre2022 raw for all training; full independently raw history for validation/test",
+  "state": "N x N return covariance plus macd/rsi_30/cci_30/dx_30; same N+4 x N dimensions",
+  "market_accounting": "raw Tushare unadjusted close in all stages; no dividend/split events supplied; fixed fractional units",
+  "checkpoint_rule": "20/40/60/80/100% of rollout-rounded target; 2023 raw F1 net SR; earliest tie",
+  "execution": "t close decision, t+1 actual raw close execution; initial all cash; no terminal liquidation",
+  "phase1": [
+    [
+      "bank",
+      "a2c"
+    ],
+    [
+      "healthcare",
+      "sac"
+    ],
+    [
+      "healthcare",
+      "ppo"
+    ]
+  ],
+  "algorithms": [
+    "a2c",
+    "ppo",
+    "sac",
+    "td3",
+    "ddpg"
+  ],
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "ablation": [
+    "A1",
+    "A2",
+    "A6",
+    "A7",
+    "A8",
+    "A9"
+  ],
+  "e1_variants": [
+    "A0"
+  ],
+  "variants": [
+    "Vanilla",
+    "A0",
+    "A1",
+    "A2",
+    "A6",
+    "A7",
+    "A8",
+    "A9"
+  ],
+  "cap": 96,
+  "ridge": {
+    "alpha": 1.0,
+    "k": 3,
+    "target": "raw close[t+2]/raw close[t+1]-1; labels entirely in2022",
+    "fit_scaler": "training rows only"
+  },
+  "bootstrap": {
+    "blocks": [
+      10,
+      5,
+      20
+    ],
+    "B": 2000,
+    "seed": 1729
+  },
+  "forecast_provenance": "v4 walk-forward forecaster: 20-day window of returns, ranges, trading value and valuation yields; targets H/L/C at t+1,t+2; fold 2022 trained on 2018-2020, early stopping on 2021, scalers fitted on training rows only; relation graphs as archived. Vanilla RL runs are reused from v3 (identical code path and inputs).",
+  "vanilla_source": "runs/v3_train_only",
+  "test_seen": "2024 previously examined; fixed historical evaluation"
+}

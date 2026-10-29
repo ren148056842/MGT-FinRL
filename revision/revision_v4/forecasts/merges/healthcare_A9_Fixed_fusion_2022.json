@@ -1,0 +1,11 @@
+{
+ "sector": "healthcare",
+ "model": "A9_Fixed_fusion",
+ "source": "ensembles/healthcare_2022_A9_Fixed_fusion.npz",
+ "source_sha256": "5962465d38be0e6fa03a8ec39822cefd05af2eb14f30961dc50e27e0388dca3d",
+ "replaced_stock_days": 3627,
+ "kept_suspended_stock_days": 3,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "29495c839470fc88c3b22feb8b3fb1dfc7e29bf855767736b088e3311fd27bef"
+}

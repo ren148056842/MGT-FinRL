@@ -1,0 +1,2 @@
+﻿actual_steps,requested_threshold,validation_SR,validation_AR,validation_MDD,validation_seconds,checkpoint,checkpoint_sha256
+2048,2048,-0.030544887417076783,-0.017042698948666057,0.18285303227181315,0.09743940000000606,checkpoint_002048.zip,6894a10b16892e6e87f9d750d0a845e7fcd7ce9521cb5367ddcd7a44afb2db5f

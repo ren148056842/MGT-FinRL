@@ -1,0 +1,3 @@
+﻿sector,raw,rows,first,last,stocks,data_source,price_basis,basis_evidence,accounting_scope
+bank,bank sectordata/banktrade20241231.CSV,25485,2018-01-02,2024-12-31,15,Tushare,unadjusted,author_confirmed,unadjusted_price_cost_sensitivity
+healthcare,haelthcaresectordata/techtrade20241231.CSV,25485,2018-01-02,2024-12-31,15,Tushare,unadjusted,author_confirmed,unadjusted_price_cost_sensitivity

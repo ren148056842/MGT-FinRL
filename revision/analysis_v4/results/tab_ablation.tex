@@ -1,0 +1,31 @@
+\begin{table}[!t]\centering\small\color{blue}
+\caption{Representation ablations at a fixed, prespecified policy (PPO) with fixed hyperparameters, three paired seeds, and the baseline cost setting F1. Each variant changes only the 2022 training observations, which are built from the one-step-ahead forecasts of the corresponding forecaster; validation and evaluation inputs are identical across rows. I1--I3 change only the initialisation of the relation scalars. Values are mean $\pm$ s.d. over seeds; AR and MDD in \%.}
+\label{tab:ablation_ppo}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llrrr}\toprule
+Sector & Training input & AR (\%) & SR & MDD (\%) \\ \midrule
+Banking & Vanilla (observed prices) & 34.13 $\pm$ 0.42 & 1.642 $\pm$ 0.019 & 10.67 $\pm$ 0.10 \\
+ & A0 Full MGT & 34.62 $\pm$ 0.72 & 1.660 $\pm$ 0.026 & 10.63 $\pm$ 0.24 \\
+ & A1 Transformer only & 34.23 $\pm$ 1.12 & 1.638 $\pm$ 0.052 & 10.86 $\pm$ 0.20 \\
+ & A2 MGNN only & 33.67 $\pm$ 0.63 & 1.624 $\pm$ 0.025 & 10.68 $\pm$ 0.16 \\
+ & A6 SH+QA (no KD) & 34.23 $\pm$ 0.22 & 1.650 $\pm$ 0.009 & 10.68 $\pm$ 0.13 \\
+ & A7 SH+KD (no QA) & 33.88 $\pm$ 1.27 & 1.628 $\pm$ 0.055 & 10.76 $\pm$ 0.38 \\
+ & A8 QA+KD (no SH) & 34.16 $\pm$ 0.57 & 1.647 $\pm$ 0.019 & 10.60 $\pm$ 0.27 \\
+ & A9 Fixed fusion & 33.86 $\pm$ 0.57 & 1.631 $\pm$ 0.028 & 10.76 $\pm$ 0.21 \\
+ & I1 $\alpha_r(0)=1$ & 32.27 $\pm$ 1.30 & 1.559 $\pm$ 0.057 & 10.89 $\pm$ 0.11 \\
+ & I2 $\alpha_r(0)=0.1/\rho_r$ & 33.67 $\pm$ 1.82 & 1.623 $\pm$ 0.078 & 10.82 $\pm$ 0.27 \\
+ & I3 $\alpha_r(0)=10/\rho_r$ & 33.93 $\pm$ 0.40 & 1.637 $\pm$ 0.009 & 10.81 $\pm$ 0.14 \\
+\midrule
+Healthcare & Vanilla (observed prices) & $-$20.98 $\pm$ 2.06 & $-$0.374 $\pm$ 0.063 & 37.65 $\pm$ 1.33 \\
+ & A0 Full MGT & $-$19.49 $\pm$ 0.60 & $-$0.325 $\pm$ 0.015 & 37.09 $\pm$ 1.55 \\
+ & A1 Transformer only & $-$20.43 $\pm$ 0.27 & $-$0.359 $\pm$ 0.010 & 37.04 $\pm$ 0.80 \\
+ & A2 MGNN only & $-$20.32 $\pm$ 1.61 & $-$0.352 $\pm$ 0.049 & 37.37 $\pm$ 0.77 \\
+ & A6 SH+QA (no KD) & $-$20.16 $\pm$ 0.94 & $-$0.348 $\pm$ 0.031 & 37.03 $\pm$ 0.82 \\
+ & A7 SH+KD (no QA) & $-$18.55 $\pm$ 1.63 & $-$0.301 $\pm$ 0.053 & 36.09 $\pm$ 1.31 \\
+ & A8 QA+KD (no SH) & $-$20.91 $\pm$ 1.28 & $-$0.376 $\pm$ 0.044 & 37.35 $\pm$ 0.89 \\
+ & A9 Fixed fusion & $-$21.50 $\pm$ 2.45 & $-$0.395 $\pm$ 0.086 & 37.33 $\pm$ 0.87 \\
+ & I1 $\alpha_r(0)=1$ & $-$20.12 $\pm$ 0.91 & $-$0.348 $\pm$ 0.027 & 37.14 $\pm$ 1.02 \\
+ & I2 $\alpha_r(0)=0.1/\rho_r$ & $-$21.27 $\pm$ 1.69 & $-$0.388 $\pm$ 0.060 & 37.62 $\pm$ 1.16 \\
+ & I3 $\alpha_r(0)=10/\rho_r$ & $-$18.75 $\pm$ 3.04 & $-$0.307 $\pm$ 0.099 & 36.33 $\pm$ 1.55 \\
+\bottomrule
+\end{tabular}\end{table}

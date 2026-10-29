@@ -1,0 +1,79 @@
+{
+  "status": "completed",
+  "context": {
+    "protocol_sha256": "af15852bab0a15e514c8e0238fce38a65dd53f03f5d09d67e5941bcd9b313941",
+    "input_sha256": "19c47f5defd0c29685cef1a705ccf98308d6fe1a285c1aeb30e507b2e575ff7d",
+    "code_sha256": "8b41e99e9ea81a0c16a04a11c577c9cc5a886f3ceecfbee544324957affb582c",
+    "environment_sha256": "ecbba4dd05f3bd89011639490c5be04742070583c422950d6869579a31c7cb58"
+  },
+  "artifacts": {
+    "best_policy.zip": "26432b717d3390556dd4b870744edb00095bb6943d44e421ec69d551e9defca2",
+    "checkpoint_008192.zip": "26432b717d3390556dd4b870744edb00095bb6943d44e421ec69d551e9defca2",
+    "checkpoint_016384.zip": "e12b562a93f388fb85f469d254bc351467d9734bf56f7d13b03eb26b331f133e",
+    "checkpoint_024576.zip": "eb1b0e5f5b81c1dbe646ba1bf083827472557980b8bb8f70ed0654e3e279f838",
+    "checkpoint_032768.zip": "71ff73f8dd0e5852dbb383f7145ea464c30f0e5dc758dd53cb013946e93ae377",
+    "checkpoint_040960.zip": "05a6fa7088df89e9f2c4481aaa74f854a56f75695c77d6fc1a1a4471b5591890",
+    "checkpoint_metadata.json": "3ff1b34b2346e90917ce1918e347cb0ef86577f165e35b90a7aa56d851f51e38",
+    "final_policy.zip": "05a6fa7088df89e9f2c4481aaa74f854a56f75695c77d6fc1a1a4471b5591890",
+    "training.log": "85ce9aea5c8de3ddc3537092caf91669cf7814e9472d94425e8fae0209abe1e5",
+    "validation.csv": "2b4975add02a6dd27f9e237e2ea8c13112fcc75470f2ba56f94ba894fb419d20"
+  },
+  "task": {
+    "task_id": "E1_healthcare_A0_ppo_s1",
+    "sector": "healthcare",
+    "variant": "A0",
+    "algorithm": "ppo",
+    "seed": 1,
+    "steps": 40000,
+    "phase": 1,
+    "fees": [
+      "F0",
+      "F1",
+      "F2",
+      "F3",
+      "F4",
+      "F5",
+      "F6"
+    ]
+  },
+  "formal": true,
+  "paper_eligible": false,
+  "accounting_scope": "unadjusted_price_cost_sensitivity",
+  "result_status": "cost_analysis_scope_limited",
+  "economic_return_validated": false,
+  "num_timesteps": 40960,
+  "requested_steps": 40000,
+  "rounded_budget": 40960,
+  "rollout_steps": 2048,
+  "train_seconds": 59.611481000000026,
+  "validation_selection": "net Sharpe F1, fixed thresholds; earliest tie",
+  "selected_checkpoint": "checkpoint_008192.zip",
+  "checkpoint_sha256": "26432b717d3390556dd4b870744edb00095bb6943d44e421ec69d551e9defca2",
+  "algorithm_parameters": {
+    "n_steps": 2048,
+    "ent_coef": 0.005,
+    "learning_rate": 0.001,
+    "batch_size": 128,
+    "seed": 1,
+    "device": "cpu",
+    "verbose": 0
+  },
+  "actual_gamma": 0.99,
+  "policy": "ActorCriticPolicy(\n  (features_extractor): FlattenExtractor(\n    (flatten): Flatten(start_dim=1, end_dim=-1)\n  )\n  (pi_features_extractor): FlattenExtractor(\n    (flatten): Flatten(start_dim=1, end_dim=-1)\n  )\n  (vf_features_extractor): FlattenExtractor(\n    (flatten): Flatten(start_dim=1, end_dim=-1)\n  )\n  (mlp_extractor): MlpExtractor(\n    (policy_net): Sequential(\n      (0): Linear(in_features=285, out_features=64, bias=True)\n      (1): Tanh()\n      (2): Linear(in_features=64, out_features=64, bias=True)\n      (3): Tanh()\n    )\n    (value_net): Sequential(\n      (0): Linear(in_features=285, out_features=64, bias=True)\n      (1): Tanh()\n      (2): Linear(in_features=64, out_features=64, bias=True)\n      (3): Tanh()\n    )\n  )\n  (action_net): Linear(in_features=64, out_features=15, bias=True)\n  (value_net): Linear(in_features=64, out_features=1, bias=True)\n)",
+  "observation_shape": [
+    19,
+    15
+  ],
+  "action_mapping": "float64 stable softmax [-1,1] outputs to long-only simplex",
+  "reward": "net daily return*.1",
+  "episode_transitions": 241,
+  "train_dates": [
+    "2022-01-04",
+    "2022-12-30"
+  ],
+  "validation_dates": [
+    "2023-01-03",
+    "2023-12-29"
+  ],
+  "test_dates_not_evaluated": true
+}

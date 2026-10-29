@@ -1,0 +1,11 @@
+{
+ "sector": "bank",
+ "model": "I1_alpha_one",
+ "source": "ensembles/bank_2022_I1_alpha_one.npz",
+ "source_sha256": "652565a8a47aac10340ae0c40d275b273ecf57165478fe5f6da296a1a78f1e67",
+ "replaced_stock_days": 3630,
+ "kept_suspended_stock_days": 0,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "742a07cfaa680ef8495cc23aca76655ddb04dbda1dfef9600e57796f9e95396b"
+}

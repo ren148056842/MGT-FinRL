@@ -1,0 +1,11 @@
+{
+ "sector": "bank",
+ "model": "B5_GAT_GRU",
+ "source": "ensembles/bank_2022_B5_GAT_GRU.npz",
+ "source_sha256": "cd4cdffbaba05d3edbc685ad603602ae55472421f86ed5a85d7243db5912a149",
+ "replaced_stock_days": 3630,
+ "kept_suspended_stock_days": 0,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "8ab8b73d097314abb8d5723bbfa0df084d048595046371a6004b1ad3549fe8fa"
+}

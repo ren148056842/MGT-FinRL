@@ -1,0 +1,11 @@
+{
+ "sector": "bank",
+ "model": "A10_No_cross_stock",
+ "source": "ensembles/bank_2022_A10_No_cross_stock.npz",
+ "source_sha256": "e7b6f451f2d62b1b2d668379c4bfc2832ed0e7a75ebb1ba69d260091b4f07330",
+ "replaced_stock_days": 3630,
+ "kept_suspended_stock_days": 0,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "72b3c0c3e56167767144eaaa780d77c531bc1ab6b20ed37ad336ac354b715c4d"
+}

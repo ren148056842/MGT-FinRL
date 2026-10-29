@@ -1,0 +1,11 @@
+{
+ "sector": "bank",
+ "model": "B2_GAT_Transformer",
+ "source": "ensembles/bank_2022_B2_GAT_Transformer.npz",
+ "source_sha256": "c8af71be3c02d56816f12386e0e7beee6036e4290adb755e5bb6467a49a039ac",
+ "replaced_stock_days": 3630,
+ "kept_suspended_stock_days": 0,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "c2cee33ebcecaa3ce47667648ab7187e2247ed9bb2f221bd072e3b6e59d99c94"
+}

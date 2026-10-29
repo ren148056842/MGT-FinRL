@@ -1,0 +1,6 @@
+{
+  "task": "E1_healthcare_A0_ddpg_s3",
+  "num_timesteps": 50000,
+  "status": "training",
+  "time_utc": "2026-10-29T21:40:53.422096+00:00"
+}

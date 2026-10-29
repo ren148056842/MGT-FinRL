@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-25",
+  "source": "Codex_MGT_TrainingOnly_V3_ZH.txt",
+  "source_sha256": "c33b5790b4fa4d552ab443b05ac04fe1aac62ff4984a5a480cd9fc499c24594b",
+  "evidence_class": "author_confirmed_not_third_party_certification",
+  "augmentation_scope": "train_2022_only",
+  "validation_input": "raw",
+  "test_input": "raw",
+  "market_source": "Tushare",
+  "price_basis": "unadjusted",
+  "allow_RL_price_cost_analysis": true,
+  "company_actions": "not supplied; no preexisting Tushare environment credential available",
+  "interpretation": "Effect of training on one-step-ahead forecast-augmented 2022 observations on subsequent raw-observation policies; not online test-time forecasts",
+  "cutoff_interpretation": "Offline 2022 augmentation allowed; evaluation-period contamination blocks only if affirmatively established"
+}

@@ -1,0 +1,11 @@
+{
+ "sector": "bank",
+ "model": "A0_Full_MGT",
+ "source": "ensembles/bank_2022_A0_Full_MGT.npz",
+ "source_sha256": "5edaa1b3b7e1cf285c336c753f131c4377c857f66446e02eac2b53a2bee82ffd",
+ "replaced_stock_days": 3630,
+ "kept_suspended_stock_days": 0,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "b7c8023c8a47a5250eb87e60d3374bff791a1a9dd80b7becd1511c5efc812bdb"
+}

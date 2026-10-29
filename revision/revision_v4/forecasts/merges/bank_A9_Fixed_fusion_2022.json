@@ -1,0 +1,11 @@
+{
+ "sector": "bank",
+ "model": "A9_Fixed_fusion",
+ "source": "ensembles/bank_2022_A9_Fixed_fusion.npz",
+ "source_sha256": "6cb3424cd7dc4047b38753d719c511f760a42d7df91f620e3e9d78c370d1d9ba",
+ "replaced_stock_days": 3630,
+ "kept_suspended_stock_days": 0,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "e908c2225dd1c9b47530f93a6ddabf3c2e0856830c3d8000ba3df5382f75f0bc"
+}

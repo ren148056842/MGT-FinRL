@@ -1,0 +1,11 @@
+{
+ "sector": "healthcare",
+ "model": "Naive",
+ "source": "runs/healthcare/2022/Naive/pred.npz",
+ "source_sha256": "7dd757fff605e21d98ba3df1aa535f9bca623d617d861714399126e8d6c5fe3d",
+ "replaced_stock_days": 3627,
+ "kept_suspended_stock_days": 3,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "336d6c2a204b4ee031a692fbc7bf5e96f3622b182fbaf6a5fcdba93872df5925"
+}

@@ -1,0 +1,5 @@
+{
+ "model": "Naive",
+ "rule": "H,L,C of t+k forecast by H_t, L_t, C_t",
+ "seconds": 0.010210599999936676
+}

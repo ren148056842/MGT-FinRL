@@ -1,0 +1,75 @@
+{
+  "status": "completed",
+  "context": {
+    "protocol_sha256": "af15852bab0a15e514c8e0238fce38a65dd53f03f5d09d67e5941bcd9b313941",
+    "input_sha256": "19c47f5defd0c29685cef1a705ccf98308d6fe1a285c1aeb30e507b2e575ff7d",
+    "code_sha256": "8b41e99e9ea81a0c16a04a11c577c9cc5a886f3ceecfbee544324957affb582c",
+    "environment_sha256": "ecbba4dd05f3bd89011639490c5be04742070583c422950d6869579a31c7cb58"
+  },
+  "artifacts": {
+    "best_policy.zip": "9780ff1b1db3955810608887019abc7ba14cf178a91a04cf09e5e87f91f888bc",
+    "checkpoint_010000.zip": "9ce462cd580eeb18c5d2158c80633c9ccde0ca19e3aa825b57c65375a9153563",
+    "checkpoint_020000.zip": "9780ff1b1db3955810608887019abc7ba14cf178a91a04cf09e5e87f91f888bc",
+    "checkpoint_030000.zip": "1d12ec80ea8b0540c6dd41dc5f1c2451d354c342433e243ecbce37675e2b9dae",
+    "checkpoint_040000.zip": "ca50a3203498f464b1b0e648c123eebcd90a30ee3936733435c018aa1917e9ab",
+    "checkpoint_050000.zip": "0accfc107c4aa0709075a432920ba1893be0fd0840bc674dcb64633ec4781e1b",
+    "checkpoint_metadata.json": "ce9ca2adb1abdeacdf1a8632e76025857c05c0f750107aa8e9fbe768edb8ea9f",
+    "final_policy.zip": "6c76cba1c51228feefc79c99dc14f337917966030da18b4ba894192d8126c524",
+    "training.log": "529c4c364bf6e3cf0091e8b663fb6615223e193dcbe76d3f8fd833a34f500b91",
+    "validation.csv": "df898ec83839e42918cfb5f3a05b382fa7d211f514242aec185fe12ffc014136"
+  },
+  "task": {
+    "task_id": "E1_bank_A0_ddpg_s1",
+    "sector": "bank",
+    "variant": "A0",
+    "algorithm": "ddpg",
+    "seed": 1,
+    "steps": 50000,
+    "phase": 2,
+    "fees": [
+      "F0",
+      "F1",
+      "F2",
+      "F3",
+      "F4",
+      "F5",
+      "F6"
+    ]
+  },
+  "formal": true,
+  "paper_eligible": false,
+  "accounting_scope": "unadjusted_price_cost_sensitivity",
+  "result_status": "cost_analysis_scope_limited",
+  "economic_return_validated": false,
+  "num_timesteps": 50000,
+  "requested_steps": 50000,
+  "rounded_budget": 50000,
+  "rollout_steps": 1,
+  "train_seconds": 1969.4885763999991,
+  "validation_selection": "net Sharpe F1, fixed thresholds; earliest tie",
+  "selected_checkpoint": "checkpoint_020000.zip",
+  "checkpoint_sha256": "9780ff1b1db3955810608887019abc7ba14cf178a91a04cf09e5e87f91f888bc",
+  "algorithm_parameters": {
+    "seed": 1,
+    "device": "cpu",
+    "verbose": 0
+  },
+  "actual_gamma": 0.99,
+  "policy": "TD3Policy(\n  (actor): Actor(\n    (features_extractor): FlattenExtractor(\n      (flatten): Flatten(start_dim=1, end_dim=-1)\n    )\n    (mu): Sequential(\n      (0): Linear(in_features=285, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=15, bias=True)\n      (5): Tanh()\n    )\n  )\n  (actor_target): Actor(\n    (features_extractor): FlattenExtractor(\n      (flatten): Flatten(start_dim=1, end_dim=-1)\n    )\n    (mu): Sequential(\n      (0): Linear(in_features=285, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=15, bias=True)\n      (5): Tanh()\n    )\n  )\n  (critic): ContinuousCritic(\n    (features_extractor): FlattenExtractor(\n      (flatten): Flatten(start_dim=1, end_dim=-1)\n    )\n    (qf0): Sequential(\n      (0): Linear(in_features=300, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=1, bias=True)\n    )\n  )\n  (critic_target): ContinuousCritic(\n    (features_extractor): FlattenExtractor(\n      (flatten): Flatten(start_dim=1, end_dim=-1)\n    )\n    (qf0): Sequential(\n      (0): Linear(in_features=300, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=1, bias=True)\n    )\n  )\n)",
+  "observation_shape": [
+    19,
+    15
+  ],
+  "action_mapping": "float64 stable softmax [-1,1] outputs to long-only simplex",
+  "reward": "net daily return*.1",
+  "episode_transitions": 241,
+  "train_dates": [
+    "2022-01-04",
+    "2022-12-30"
+  ],
+  "validation_dates": [
+    "2023-01-03",
+    "2023-12-29"
+  ],
+  "test_dates_not_evaluated": true
+}

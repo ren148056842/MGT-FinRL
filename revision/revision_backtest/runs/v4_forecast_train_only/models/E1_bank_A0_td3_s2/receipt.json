@@ -1,0 +1,78 @@
+{
+  "status": "completed",
+  "context": {
+    "protocol_sha256": "af15852bab0a15e514c8e0238fce38a65dd53f03f5d09d67e5941bcd9b313941",
+    "input_sha256": "19c47f5defd0c29685cef1a705ccf98308d6fe1a285c1aeb30e507b2e575ff7d",
+    "code_sha256": "8b41e99e9ea81a0c16a04a11c577c9cc5a886f3ceecfbee544324957affb582c",
+    "environment_sha256": "ecbba4dd05f3bd89011639490c5be04742070583c422950d6869579a31c7cb58"
+  },
+  "artifacts": {
+    "best_policy.zip": "0cd38d6f7e6801c2912cc9f677350434e521af918bb398bdb13dd74748b036f6",
+    "checkpoint_006000.zip": "337d7f75a877ec715e55c5d9b799e3dd6da1c480663c12dd630687290a8d0829",
+    "checkpoint_012000.zip": "0cd38d6f7e6801c2912cc9f677350434e521af918bb398bdb13dd74748b036f6",
+    "checkpoint_018000.zip": "757a47787cde08768117c4d4d767d6205a2b302bce5f4cb837e92ae4e6d3a786",
+    "checkpoint_024000.zip": "0f67565394d6ba311dfcce259ef7072b62d7f8ecaf0099285a24a53121f8bf2c",
+    "checkpoint_030000.zip": "f012caf62f67e42ed572e7d5d2d826fd3d91aac2db6894dcebeb1782f3fd1f50",
+    "checkpoint_metadata.json": "66784c4d2e8a867a12cd414d58ce46f83c1184699573493d7a19d78a85a54d9a",
+    "final_policy.zip": "3f1782ee3649b0b579e97207e839b6056db1fe7aff3610a5942199bc524a3312",
+    "training.log": "7e3ec45d41805a132f240c4f74818d737a15fd23e1080e3f0e4842a2b46ec9c8",
+    "validation.csv": "919a5ce19589cf05c95aa121fe36816d401586425ab4c73a1c634a2a33896f8c"
+  },
+  "task": {
+    "task_id": "E1_bank_A0_td3_s2",
+    "sector": "bank",
+    "variant": "A0",
+    "algorithm": "td3",
+    "seed": 2,
+    "steps": 30000,
+    "phase": 2,
+    "fees": [
+      "F0",
+      "F1",
+      "F2",
+      "F3",
+      "F4",
+      "F5",
+      "F6"
+    ]
+  },
+  "formal": true,
+  "paper_eligible": false,
+  "accounting_scope": "unadjusted_price_cost_sensitivity",
+  "result_status": "cost_analysis_scope_limited",
+  "economic_return_validated": false,
+  "num_timesteps": 30000,
+  "requested_steps": 30000,
+  "rounded_budget": 30000,
+  "rollout_steps": 1,
+  "train_seconds": 1039.7421980000004,
+  "validation_selection": "net Sharpe F1, fixed thresholds; earliest tie",
+  "selected_checkpoint": "checkpoint_012000.zip",
+  "checkpoint_sha256": "0cd38d6f7e6801c2912cc9f677350434e521af918bb398bdb13dd74748b036f6",
+  "algorithm_parameters": {
+    "batch_size": 100,
+    "buffer_size": 1000000,
+    "learning_rate": 0.001,
+    "seed": 2,
+    "device": "cpu",
+    "verbose": 0
+  },
+  "actual_gamma": 0.99,
+  "policy": "TD3Policy(\n  (actor): Actor(\n    (features_extractor): FlattenExtractor(\n      (flatten): Flatten(start_dim=1, end_dim=-1)\n    )\n    (mu): Sequential(\n      (0): Linear(in_features=285, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=15, bias=True)\n      (5): Tanh()\n    )\n  )\n  (actor_target): Actor(\n    (features_extractor): FlattenExtractor(\n      (flatten): Flatten(start_dim=1, end_dim=-1)\n    )\n    (mu): Sequential(\n      (0): Linear(in_features=285, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=15, bias=True)\n      (5): Tanh()\n    )\n  )\n  (critic): ContinuousCritic(\n    (features_extractor): FlattenExtractor(\n      (flatten): Flatten(start_dim=1, end_dim=-1)\n    )\n    (qf0): Sequential(\n      (0): Linear(in_features=300, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=1, bias=True)\n    )\n    (qf1): Sequential(\n      (0): Linear(in_features=300, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=1, bias=True)\n    )\n  )\n  (critic_target): ContinuousCritic(\n    (features_extractor): FlattenExtractor(\n      (flatten): Flatten(start_dim=1, end_dim=-1)\n    )\n    (qf0): Sequential(\n      (0): Linear(in_features=300, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=1, bias=True)\n    )\n    (qf1): Sequential(\n      (0): Linear(in_features=300, out_features=400, bias=True)\n      (1): ReLU()\n      (2): Linear(in_features=400, out_features=300, bias=True)\n      (3): ReLU()\n      (4): Linear(in_features=300, out_features=1, bias=True)\n    )\n  )\n)",
+  "observation_shape": [
+    19,
+    15
+  ],
+  "action_mapping": "float64 stable softmax [-1,1] outputs to long-only simplex",
+  "reward": "net daily return*.1",
+  "episode_transitions": 241,
+  "train_dates": [
+    "2022-01-04",
+    "2022-12-30"
+  ],
+  "validation_dates": [
+    "2023-01-03",
+    "2023-12-29"
+  ],
+  "test_dates_not_evaluated": true
+}

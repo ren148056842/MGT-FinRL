@@ -6,14 +6,14 @@ Code, data, and results for the manuscript **"MGT-FinRL: A Multi-layer Graph Neu
 > All rights reserved. No part of the code or data may be used, reproduced, or distributed without explicit permission.
 > The data files are provided for verification of the reported results only and remain subject to the terms of their original providers (Tushare and Wind).
 
-The release cited in the revised manuscript is tag **`v2.0-revision`**.
+The revised manuscript refers to the branch **`revision-v3.0`** of this repository.
 
 ## Repository layout
 
 | Path | Contents |
 |---|---|
 | `*.ipynb` (root) | Notebooks of the original submission: graph construction (`share_holding_graph`, `Q&A_graph`), forecasting models (`GNNtransformer`, `GCN-transformer`, `GAT-Transformer`, `GNNGRU`, `GCNGRU`, `GATGRU`), and the original RL experiments (`FinRL`, `PPO,A2C,DDPG，AD3,SAC`). |
-| `banksector.zip`, `healthcare.zip`, `data.zip` | Archived raw inputs: prices, volumes, valuation ratios, top-ten shareholder lists, and investor-relations Q&A records. |
+| `banksector.zip`, `healthcare.zip`, `data.zip` | Archived raw inputs: prices, trading values, valuation ratios, top-ten shareholder lists, and investor-relations Q&A records. |
 | `graphs.zip` | Figure files of the manuscript. |
 | `revision/` | Everything added for the revision (described below). |
 
@@ -21,51 +21,41 @@ The release cited in the revised manuscript is tag **`v2.0-revision`**.
 
 | Path | Contents |
 |---|---|
-| `revision_backtest/` | Revised backtesting ledger, environment, training, and evaluation code (`run_revision_v3.py` is the entry point; `v3_*.py` and its `v2_*.py` dependencies; `backtest.py` holds the reference ledger, cost settings, metrics, and bootstrap). Tests: `test_v3.py`, `test_backtest.py`. |
-| `revision_backtest/runs/v3_train_only/` | Protocol (`protocol_v3.json`), resolved hyperparameters, selected inputs with SHA-256 hashes, run status, execution records, environment (`environment.json`, `pip_freeze.txt`), verification outputs, and `prepared.tar.gz` (training-observation tensors and non-RL models). |
-| `revision_backtest/runs/v3_train_only/results/` | Summary tables (`*.csv`, `*.tex`), `evaluations.tar.gz` (daily trajectory, trades, metrics, and receipt of all 492 policy evaluations: 96 trained policies × cost settings), and `nonrl.tar.gz` (equal-weight and Ridge baselines). Daily position files (about 1 GB) and policy checkpoints (about 2.4 GB) are not included; they are available from the corresponding author on request. |
-| `bank sectordata/`, `haelthcaresectordata/` | Inputs used by the revised pipeline: Tushare daily panels (`*trade20241231.CSV`), relation matrices (`*.npy`), valuation-ratio tensors, and the archived 2022 forecaster outputs for variants A0–A9 (`ablation*/finrl_csv/`). Folder names are kept as the code expects them. |
-| `notebooks/` | Forecasting and RL notebooks used in the revision, including the original eight-run MGT notebook, the revised (chronological, MSE) forecaster and ablation notebook, and the banking Kendall-graph notebook. |
-| `forecaster_runs/` | `forecaster_runs.tar.gz`: per-seed predictions (scaled and, for healthcare, in prices), targets, training histories, and test errors of the revised forecaster for variants A0–A9 (seeds 1–3, both sectors). The forecaster outputs in `ablation*/finrl_csv/` are the average of the three seeds' predictions. |
-| `analysis/` | Scripts that produce the revised tables and figures from the stored outputs (`boot_all.py`, `tables.py`, `fig_nav_small.py`, `fc_metrics_full.py`, `verify_inputs.py`) and their outputs. |
-| `logs/` | Text dumps of the archived notebooks with their recorded outputs. |
+| `revision_v4/forecaster/` | **Re-implemented forecaster** used in the revised manuscript: `fc_data.py` (inputs, targets, masks, walk-forward folds, standardisation), `fc_models.py` (MGT, ablations A1–A10, initialisation variants I1–I3, and the five graph baselines), `fc_run.py` (training, ensembles, and the 2022 merges used for RL training). |
+| `revision_v4/forecasts/` | All forecasting outputs: `runs/<sector>/<fold>/<model>/seed<k>/` (test and validation predictions `pred.npz`, `history.csv`, `meta.json` with timings and parameter counts, `weights.h5`), ridge and previous-day forecasts, seed ensembles (`ensembles/`), and the 2022 merges (`merges/*.json` receipts and `merges_csv.tar.gz`). |
+| `revision_v4/*.ps1`, `*.cmd`, `logs/` | Scripts that ran the experiments on Windows and their logs. |
+| `revision_backtest/` | Backtesting ledger, environment, RL training, and evaluation code. Entry points: `run_revision_v4.py` (current experiments; `v4_*.py`, reusing `v3_data.py`, `v3_ledger.py`, `v2_*.py`, and `backtest.py`) and `run_revision_v3.py` (earlier experiments, whose vanilla runs are reused). Tests: `test_backtest.py`, `test_v3.py`, `test_v4.py`. |
+| `revision_backtest/runs/v4_forecast_train_only/` | RL experiments of the revised manuscript: protocol (`protocol_v4.json`, with SHA-256 hashes of all code files), input manifest, execution records, per-run training logs and validation results (`models/`), training observations (`prepared.tar.gz`), and results (`results/evaluations.tar.gz`, `results/nonrl.tar.gz`, summary CSVs). |
+| `revision_backtest/runs/v4_alpha_init/` | Fixed-PPO runs with the initialisation variants I1–I3 of the relation scalars. |
+| `revision_backtest/runs/v3_train_only/` | Earlier execution of the same RL code; its vanilla runs are reused in the revised manuscript (the vanilla training inputs are identical, which `test_v4.py` checks element by element). |
+| `analysis_v4/` | Scripts that produce every table and figure of the revised manuscript from the stored outputs (`run_analysis.sh`), and their outputs (`results/`). |
+| `bank sectordata/`, `haelthcaresectordata/` | Inputs: Tushare daily panels (`*trade20241231.CSV`; the column `volume` is the daily trading value in CNY), relation matrices (`*.npy`), and the archived forecaster outputs of an earlier implementation (`ablation*/finrl_csv/`, not used in the revised manuscript). Folder names are kept as the code expects them. |
+| `notebooks/`, `forecaster_runs/`, `analysis/`, `logs/` | Materials of the earlier revision stage: archived notebooks, the outputs of an earlier forecaster implementation, and their analysis. |
 
-## Revised evaluation protocol (summary)
+## Revised design (summary)
 
-- **Data.** Two fixed universes of 15 A-share stocks (banking; healthcare innovation), Tushare unadjusted daily prices; dividends are not credited.
-- **Splits.** RL training on 2022 (242 trading days), checkpoint selection on 2023 (checkpoints at 20/40/60/80/100% of the budget, highest net Sharpe ratio), evaluation on 2024 (242 trading days).
-- **Agents.** PPO, A2C, SAC, TD3, DDPG (Stable-Baselines3 2.4.0), each trained with vanilla and MGT-augmented 2022 observations, seeds 1–3 (60 runs); fixed-PPO ablation over variants A1, A2, A6–A9 (36 runs).
-- **Execution and costs.** Decision after the close of day *t*, execution at the close of day *t*+1; all-cash start of 10^6; long-only softmax weights; cost = (commission + slippage) × traded notional + stamp duty on sales (10 bp before 2023-08-28, 5 bp after). Settings F0–F6 = 0/0 (no duty), 3/2, 5/2, 10/2, 20/2, 3/0, 3/5 bp.
-- **Reward.** 0.1 × net daily return computed from observed prices; γ = 0.99.
-- **Statistics.** Paired circular block bootstrap over 2024 days (block 10, 2,000 resamples, seed 1729).
+**Forecaster.** At the close of day *t*, MGT forecasts log(H/C<sub>t</sub>), log(L/C<sub>t</sub>), and log(C/C<sub>t</sub>) for days *t*+1 and *t*+2 from a 20-day window of eight features per stock (log return, log high/close, log low/close, log trading value relative to its 20-day mean, and the yields 1/PE, 1/PB, 1/PS, 1/PCF). The three relation graphs are used as constructed. The relation scalars α<sub>r</sub> are initialised at 1/ρ(A<sub>r</sub>). Training uses masked MSE on standardised targets, Adam (1e-3), batch 32, ≤100 epochs, and early stopping (patience 10), with seeds 1–3; the downstream forecasts are seed averages. The evaluation uses walk-forward folds with test years 2022, 2023, and 2024 (training from 2018 to two years before the test year, early stopping on the following year). The benchmarks are the previous day's prices and a pooled ridge regression.
 
-## Notes on the forecasting module (see Section 6.3 of the revised manuscript)
+**RL.** PPO, A2C, SAC, TD3, and DDPG (Stable-Baselines3 2.4.0), seeds 1–3, are trained on 2022, checkpointed on 2023 (net Sharpe ratio), and evaluated on 2024. The MGT-enhanced agents are trained on 2022 observations in which each day's H/L/C are replaced by the one-step-ahead forecasts of the 2022 fold. Validation and test states are observed prices for all agents. Execution is at the next close, with commission, slippage, and stamp duty (settings F0–F6), and the reward is 0.1 × the net daily return. A fixed-PPO ablation covers A1, A2, A6–A9, and I1–I3. The non-RL rules are equal weighting, ridge top-3 rules on the training observations, and top-3 rules on the forecasts of each of the 17 forecasters.
 
-- Each MGT model predicts one price series of the **same day** for all stocks from that day's PE-TTM, PB, PS, and PCF (input window of one day). The ratios are computed from that day's close, so the forecast horizon is zero. The archived code and outputs are those of the closing-price model; the RL experiments replace only the 2022 closing prices.
-- The forecasting comparison of the original submission (eight runs, random split of trading days, cross-entropy training) could not be reproduced from the archived notebooks and is withdrawn.
-- The 2022 outputs used in the RL experiments come from the revised implementation in `notebooks/GNNtransformerbankclosenew-8RUNS消融_FIXED.ipynb` (MSE loss; training 2018-01-02 to 2021-03-18, early stopping to 2021-12-31, test 2022). `analysis/fc_metrics_full.py` evaluates them against observed prices (manuscript Table 2).
+## Reproducing the results
+
+```bash
+# Python 3.8 environments: forecaster with TensorFlow 2.11; RL with stable-baselines3 2.4.0, torch 2.0.1,
+# gymnasium 1.0.0, numpy 1.23.1, pandas 1.4.3, stockstats 0.4.1, scikit-learn 1.1.1 (pip_freeze.txt)
+sh revision/analysis_v4/run_analysis.sh          # all tables and figures from the stored outputs
+python revision/analysis/verify_inputs.py        # graph, Q&A, and shareholder checks
+# Full re-run (Windows paths are set in the scripts; about 4.5 h of forecasting and 8 h of RL on a laptop CPU):
+#   revision/revision_v4/run_all_v4.ps1   (forecasts, then RL in parallel with the remaining forecasts)
+```
+
+Each RL run records the SHA-256 hashes of its inputs, code, and environment in a receipt, and completed runs are reused.
 
 ## Known data issues (disclosed in the manuscript)
 
-- The banking shareholder file covers 13 of 15 banks and labels China Merchants Bank as China Minsheng Bank; CMB, PSBC, and CZB are isolated in the banking shareholder graph.
-- The high and low prices for 2022 in the archived banking forecaster files differ from the observed values on about a quarter of the stock-days.
-- Shareholder lists are single snapshots published in 2023 (healthcare: as at 2022-12-31; banking: latest lists at export, June 2023).
-
-## Reproducing the revised results
-
-```bash
-# Python 3.8; finrl 0.3.4, stable-baselines3 2.4.0, torch 2.0.1, gymnasium 1.0.0,
-# numpy 1.23.1, pandas 1.4.3, stockstats 0.4.1, scikit-learn 1.1.1 (full list: pip_freeze.txt)
-cd revision/revision_backtest/runs/v3_train_only/results && tar xzf evaluations.tar.gz && tar xzf nonrl.tar.gz && cd -
-python revision/analysis/verify_inputs.py      # graph, Q&A, and shareholder checks
-python revision/analysis/fc_metrics_full.py    # Table 2 (forecaster evaluation)
-python revision/analysis/boot_all.py           # Table 4 (paired bootstrap)
-python revision/analysis/fig_nav_small.py      # Fig. 5
-# Full retraining (about 16 CPU hours, one thread per run):
-python revision/revision_backtest/run_revision_v3.py all
-```
-
-The training entry point records SHA-256 hashes of inputs, code, and environment in each run's receipt and reuses completed runs.
+- The banking shareholder file covers 13 of the 15 banks and labels China Merchants Bank as China Minsheng Bank; CMB, PSBC, and CZB are isolated in the banking shareholder graph.
+- The trade panels contain repeated placeholder values for PSBC and CZB before their A-share listings; the forecaster masks them, and the RL panel starts on 10 December 2019.
+- Shareholder lists are single snapshots published in 2023 (healthcare: as at 2022-12-31; banking: latest lists at export, June 2023). The relation graphs are static, so the 2022 and 2023 forecasting folds use graphs that contain information from their test years.
 
 ## Contact
 

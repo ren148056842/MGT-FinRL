@@ -1,0 +1,31 @@
+\begin{table*}[!t]
+\centering\small\color{blue}
+\caption{Out-of-sample forecasting results, pooled over the test years 2022, 2023, and 2024 (726 forecast origins per sector; expanding-window folds; forecasts averaged over three seeds). RMSE: one-day-ahead closing log return, in \% of price; $R^2_{\mathrm{OS}}$: out-of-sample $R^2$ relative to the previous close (a zero-return forecast), in \%; DM: Diebold--Mariano statistic of the squared-error differential against the previous close (positive values favour the previous close) and its $p$-value; Dir.: direction accuracy, in \%; IC$_1$ and IC$_2$: mean daily rank information coefficient ($t$-statistic) for the return from $t$ to $t+1$ and from $t+1$ to $t+2$; only the latter can be traded by a decision executed at the close of $t+1$. High and Low: RMSE of the one-day-ahead log high and low relative to the previous day\textquotesingle s high and low (values below one favour the model; $p<0.001$ in every case).}
+\label{tab:forecast_eval}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llrrrrrrrr}\toprule
+Sector & Model & RMSE & $R^2_{\mathrm{OS}}$ & DM ($p$) & Dir. & IC$_1$ ($t$) & IC$_2$ ($t$) & High & Low \\ \midrule
+Banking & Previous day & 1.388 & 0.00 & -- & -- & -- & -- & 1.000 & 1.000 \\
+ & Ridge regression & 1.396 & $-$1.05 & 1.61 (0.107) & 49.5 & 0.001 (0.1) & $-$0.007 ($-$0.6) & 0.863 & 0.799 \\
+ & MGT (A0) & 1.405 & $-$2.42 & 2.67 (0.008) & 50.5 & 0.010 (0.8) & $-$0.018 ($-$1.6) & 0.876 & 0.802 \\
+ & A1 Transformer only & 1.390 & $-$0.27 & 0.69 (0.493) & 51.5 & 0.065 (5.0) & 0.000 (0.0) & 0.863 & 0.798 \\
+ & A10 No cross-stock propagation & 1.409 & $-$3.08 & 3.54 ($<$0.001) & 48.5 & $-$0.003 ($-$0.2) & 0.044 (3.6) & 0.867 & 0.792 \\
+ & Multi-GCN-Transformer & 1.400 & $-$1.76 & 2.96 (0.003) & 49.7 & 0.001 (0.1) & 0.019 (1.6) & 0.863 & 0.806 \\
+ & Multi-GAT-Transformer & 1.408 & $-$2.80 & 3.15 (0.002) & 49.5 & 0.025 (1.9) & $-$0.021 ($-$1.9) & 0.874 & 0.807 \\
+ & Multi-GNN-GRU & 1.393 & $-$0.66 & 1.74 (0.082) & 50.8 & 0.021 (2.0) & $-$0.007 ($-$0.6) & 0.850 & 0.794 \\
+ & Multi-GCN-GRU & 1.394 & $-$0.83 & 2.86 (0.004) & 49.8 & $-$0.022 ($-$1.6) & $-$0.021 ($-$1.6) & 0.847 & 0.791 \\
+ & Multi-GAT-GRU & 1.398 & $-$1.36 & 2.58 (0.010) & 51.2 & 0.010 (0.8) & $-$0.024 ($-$2.0) & 0.851 & 0.801 \\
+\midrule
+Healthcare & Previous day & 3.106 & 0.00 & -- & -- & -- & -- & 1.000 & 1.000 \\
+ & Ridge regression & 3.107 & $-$0.09 & 0.36 (0.720) & 49.5 & 0.007 (0.6) & 0.022 (2.1) & 0.834 & 0.778 \\
+ & MGT (A0) & 3.118 & $-$0.75 & 1.10 (0.272) & 51.4 & 0.011 (0.9) & $-$0.004 ($-$0.3) & 0.842 & 0.787 \\
+ & A1 Transformer only & 3.098 & 0.49 & $-$1.30 (0.194) & 49.6 & 0.022 (2.0) & 0.019 (1.8) & 0.832 & 0.777 \\
+ & A10 No cross-stock propagation & 3.097 & 0.59 & $-$1.19 (0.235) & 52.2 & 0.035 (3.3) & 0.035 (3.3) & 0.829 & 0.778 \\
+ & Multi-GCN-Transformer & 3.120 & $-$0.93 & 1.01 (0.315) & 49.7 & 0.042 (3.7) & 0.010 (0.9) & 0.834 & 0.781 \\
+ & Multi-GAT-Transformer & 3.112 & $-$0.37 & 0.57 (0.569) & 48.8 & 0.055 (5.0) & 0.017 (1.6) & 0.833 & 0.781 \\
+ & Multi-GNN-GRU & 3.128 & $-$1.41 & 3.91 ($<$0.001) & 48.9 & $-$0.008 ($-$0.7) & 0.009 (0.7) & 0.832 & 0.777 \\
+ & Multi-GCN-GRU & 3.115 & $-$0.58 & 1.10 (0.273) & 47.8 & 0.046 (4.0) & 0.011 (0.9) & 0.834 & 0.775 \\
+ & Multi-GAT-GRU & 3.118 & $-$0.80 & 1.07 (0.284) & 46.8 & 0.049 (4.4) & 0.008 (0.7) & 0.829 & 0.776 \\
+\bottomrule
+\end{tabular}}
+\end{table*}

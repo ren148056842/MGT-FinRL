@@ -1,0 +1,86 @@
+﻿path,unchanged
+bank sectordata/bank_qa_graph.npy,True
+bank sectordata/bank_stock_matrix_pbr.npy,True
+bank sectordata/bank_stock_matrix_pcf.npy,True
+bank sectordata/bank_stock_matrix_ps.npy,True
+bank sectordata/bank_stock_matrix_ttm.npy,True
+bank sectordata/bankcloseshizhi.csv,True
+bank sectordata/bankshareholding_relation_adjacent_matrix_tongyi.npy,True
+bank sectordata/banktrade20241231.CSV,True
+bank sectordata/bankvolume_kendall.npy,True
+code/add_benchmarks_hs300_final_tables_curves.ipynb,True
+code/bank_RL_ablation_A0_A9_best_policy_from_healthcare_code.ipynb,True
+code/bank_RL_ablation_A0_A9_best_policy_MANUAL_DATE_FIXED - 副本.ipynb,True
+code/bank_RL_ablation_A0_A9_best_policy_MANUAL_DATE_FIXED.ipynb,True
+code/bank_RL_forecast_to_policy_A0_A9_best_policy.ipynb,True
+code/FinRL.ipynb,True
+code/GAT-Transformer.ipynb,True
+code/GATGRU.ipynb,True
+code/GCN-transformer.ipynb,True
+code/GCNGRU.ipynb,True
+code/GNNGRU.ipynb,True
+code/GNNtransformer.ipynb,True
+code/GNNtransformerbankclosenew-8RUNS.ipynb,True
+code/GNNtransformerbankclosenew-8RUNS消融_FIXED.ipynb,True
+code/healthcare_forecast_to_policy_equal_weight_A0_A9.ipynb,True
+code/healthcare_tech_RL_ablation_A0_A9_FIXED_read_ablation_tech.ipynb,True
+code/kendal_gcn-bankvolume_graph.ipynb,True
+"code/PPO,A2C,DDPG，AD3,SAC.ipynb",True
+"code/PPO,A2C,mergebanktrade20241231消融_FIXED.ipynb",True
+code/PPO_A2C_mergebanktrade20241231消融_FIXED_v5_auto_read_ablation_preds.ipynb,True
+code/Q&A_graph.ipynb,True
+code/share_holding_graph.ipynb,True
+code/techtrade20241231_RL_forecast_to_policy_ablation_A0_A9.ipynb,True
+code/volumegraph.ipynb,True
+Codex_MGT_TrainingOnly_V3_ZH.txt,True
+haelthcaresectordata/tech.csv,True
+haelthcaresectordata/tech_pbr.npy,True
+haelthcaresectordata/tech_pcf.npy,True
+haelthcaresectordata/tech_ps.npy,True
+haelthcaresectordata/tech_qa_graph.npy,True
+haelthcaresectordata/tech_ttm.npy,True
+haelthcaresectordata/techstockholder.npy,True
+haelthcaresectordata/techtrade20241231.CSV,True
+haelthcaresectordata/techvolume_kendall.npy,True
+revision_v4/forecasts/ensembles/bank_2022_A0_Full_MGT.npz,True
+revision_v4/forecasts/ensembles/bank_2022_A1_Transformer_only.npz,True
+revision_v4/forecasts/ensembles/bank_2022_A2_MGNN_only.npz,True
+revision_v4/forecasts/ensembles/bank_2022_A6_SH_QA.npz,True
+revision_v4/forecasts/ensembles/bank_2022_A7_SH_KD.npz,True
+revision_v4/forecasts/ensembles/bank_2022_A8_QA_KD.npz,True
+revision_v4/forecasts/ensembles/bank_2022_A9_Fixed_fusion.npz,True
+revision_v4/forecasts/ensembles/healthcare_2022_A0_Full_MGT.npz,True
+revision_v4/forecasts/ensembles/healthcare_2022_A1_Transformer_only.npz,True
+revision_v4/forecasts/ensembles/healthcare_2022_A2_MGNN_only.npz,True
+revision_v4/forecasts/ensembles/healthcare_2022_A6_SH_QA.npz,True
+revision_v4/forecasts/ensembles/healthcare_2022_A7_SH_KD.npz,True
+revision_v4/forecasts/ensembles/healthcare_2022_A8_QA_KD.npz,True
+revision_v4/forecasts/ensembles/healthcare_2022_A9_Fixed_fusion.npz,True
+revision_v4/forecasts/merges/bank_A0_Full_MGT_2022.csv,True
+revision_v4/forecasts/merges/bank_A0_Full_MGT_2022.json,True
+revision_v4/forecasts/merges/bank_A1_Transformer_only_2022.csv,True
+revision_v4/forecasts/merges/bank_A1_Transformer_only_2022.json,True
+revision_v4/forecasts/merges/bank_A2_MGNN_only_2022.csv,True
+revision_v4/forecasts/merges/bank_A2_MGNN_only_2022.json,True
+revision_v4/forecasts/merges/bank_A6_SH_QA_2022.csv,True
+revision_v4/forecasts/merges/bank_A6_SH_QA_2022.json,True
+revision_v4/forecasts/merges/bank_A7_SH_KD_2022.csv,True
+revision_v4/forecasts/merges/bank_A7_SH_KD_2022.json,True
+revision_v4/forecasts/merges/bank_A8_QA_KD_2022.csv,True
+revision_v4/forecasts/merges/bank_A8_QA_KD_2022.json,True
+revision_v4/forecasts/merges/bank_A9_Fixed_fusion_2022.csv,True
+revision_v4/forecasts/merges/bank_A9_Fixed_fusion_2022.json,True
+revision_v4/forecasts/merges/healthcare_A0_Full_MGT_2022.csv,True
+revision_v4/forecasts/merges/healthcare_A0_Full_MGT_2022.json,True
+revision_v4/forecasts/merges/healthcare_A1_Transformer_only_2022.csv,True
+revision_v4/forecasts/merges/healthcare_A1_Transformer_only_2022.json,True
+revision_v4/forecasts/merges/healthcare_A2_MGNN_only_2022.csv,True
+revision_v4/forecasts/merges/healthcare_A2_MGNN_only_2022.json,True
+revision_v4/forecasts/merges/healthcare_A6_SH_QA_2022.csv,True
+revision_v4/forecasts/merges/healthcare_A6_SH_QA_2022.json,True
+revision_v4/forecasts/merges/healthcare_A7_SH_KD_2022.csv,True
+revision_v4/forecasts/merges/healthcare_A7_SH_KD_2022.json,True
+revision_v4/forecasts/merges/healthcare_A8_QA_KD_2022.csv,True
+revision_v4/forecasts/merges/healthcare_A8_QA_KD_2022.json,True
+revision_v4/forecasts/merges/healthcare_A9_Fixed_fusion_2022.csv,True
+revision_v4/forecasts/merges/healthcare_A9_Fixed_fusion_2022.json,True
