@@ -1,0 +1,21 @@
+\begin{table}[!h]\centering\small\color{blue}
+\caption{Retrospective selection diagnostic for the fixed-PPO comparison (F1). Mean: mean 2024 SR over the three paired seeds, as in Table~\ref{tab:ablation_ppo}. Best seed: SR of the seed with the highest 2024 SR. Ranks are among the eleven training inputs of each sector (1 = highest). The best-seed selection uses the evaluation year and is not out-of-sample evidence.}
+\label{tab:retro}
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lrrrrrrrr}\toprule
+ & \multicolumn{4}{c}{Banking} & \multicolumn{4}{c}{Healthcare} \\ \cmidrule(lr){2-5}\cmidrule(lr){6-9}
+Training input & Mean & Best seed & \multicolumn{2}{c}{Rank} & Mean & Best seed & \multicolumn{2}{c}{Rank} \\
+ & & & mean & best & & & mean & best \\ \midrule
+Vanilla (observed prices) & 1.642 & 1.655 & 4 & 8 & $-$0.374 & $-$0.336 & 8 & 9 \\
+A0 Full MGT & 1.660 & 1.680 & 1 & 2 & $-$0.325 & $-$0.314 & 3 & 5 \\
+A1 Transformer only & 1.638 & 1.685 & 5 & 1 & $-$0.359 & $-$0.348 & 7 & 11 \\
+A2 MGNN only & 1.624 & 1.639 & 9 & 10 & $-$0.352 & $-$0.296 & 6 & 3 \\
+A6 SH+QA (no KD) & 1.650 & 1.660 & 2 & 6 & $-$0.348 & $-$0.313 & 5 & 4 \\
+A7 SH+KD (no QA) & 1.628 & 1.671 & 8 & 4 & $-$0.301 & $-$0.255 & 1 & 2 \\
+A8 QA+KD (no SH) & 1.647 & 1.666 & 3 & 5 & $-$0.376 & $-$0.327 & 9 & 8 \\
+A9 Fixed fusion & 1.631 & 1.659 & 7 & 7 & $-$0.395 & $-$0.344 & 11 & 10 \\
+I1 $\alpha_r(0)=1$ & 1.559 & 1.612 & 11 & 11 & $-$0.348 & $-$0.322 & 4 & 6 \\
+I2 $\alpha_r(0)=0.1/\rho_r$ & 1.623 & 1.674 & 10 & 3 & $-$0.388 & $-$0.326 & 10 & 7 \\
+I3 $\alpha_r(0)=10/\rho_r$ & 1.637 & 1.647 & 6 & 9 & $-$0.307 & $-$0.209 & 2 & 1 \\
+\bottomrule
+\end{tabular}\end{table}
