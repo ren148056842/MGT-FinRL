@@ -1,0 +1,7 @@
+﻿sector,algorithm,fee,status
+bank,a2c,F1,computation_completed
+bank,a2c,F0,computation_completed
+healthcare,sac,F1,computation_completed
+healthcare,sac,F0,computation_completed
+healthcare,ppo,F1,computation_completed
+healthcare,ppo,F0,computation_completed

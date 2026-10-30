@@ -1,0 +1,12 @@
+{
+  "actual_real_data_train": 96,
+  "actual_real_data_eval": 492,
+  "real_api_short_run": 1,
+  "nonrl_fit": 4,
+  "nonrl_eval": 56,
+  "regression_tests": 1,
+  "failed": 0,
+  "blocked": 0,
+  "economic_return_validated": false,
+  "accounting_scope": "unadjusted_price_cost_sensitivity"
+}

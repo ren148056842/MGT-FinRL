@@ -1,0 +1,581 @@
+CELL 0
+# Healthcare innovation sector：A0--A9 forecast-to-policy equal-weight ablation
+
+本 notebook 用于生成与 bank 组相同口径的 `forecast_to_policy_equal_weight` 消融实验。
+
+核心逻辑：
+
+1. 从 `D:/paper/onging/ablation_tech` 读取 A0--A9 预测结果；
+2. 将每个预测版本转换成 FinRL 长表 CSV；
+3. 对每个 A0--A9 版本执行 **Equal Weight Rebalanced**，并同时输出 Buy-and-Hold 参考结果；
+4. 输出与 bank 组一致的表格：`Method, Best policy, CR, AR, SR, MDD, Calmar, Sortino, Final value`。
+
+本 notebook 不训练 RL agent，因此运行速度远快于 A0--A9 × 5 agents 消融实验。
+
+CELL 1
+# ===============================
+# 0. Imports and global settings
+# ===============================
+
+import os
+from pathlib import Path
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+
+PROJECT_ROOT = Path("D:/paper/onging")
+GRAPH_DATA_DIR = PROJECT_ROOT / "data" / "graph"
+PRED_ABLATION_DIR = PROJECT_ROOT / "ablation_tech"
+OUT_DIR = PRED_ABLATION_DIR / "forecast_to_policy_equal_weight"
+GENERATED_FINRL_DIR = PRED_ABLATION_DIR / "finrl_csv_equal_weight"
+
+BASE_FULL_MGT_CSV = GRAPH_DATA_DIR / "techtrade20241231.csv"
+TECH_CLOSE_CSV = PROJECT_ROOT / "data" / "tech" / "techclose.csv"
+
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+GENERATED_FINRL_DIR.mkdir(parents=True, exist_ok=True)
+
+ALL_VARIANTS = [
+    "A0_Full_MGT",
+    "A1_Transformer_only",
+    "A2_MGNN_only",
+    "A3_SH_only",
+    "A4_QA_only",
+    "A5_KD_only",
+    "A6_SH_QA",
+    "A7_SH_KD",
+    "A8_QA_KD",
+    "A9_Fixed_fusion",
+]
+
+TRADE_START = "2023-01-03"
+TRADE_END   = "2024-12-31"
+PREDICTION_START = TRADE_START
+PREDICTION_END   = TRADE_END
+PRED_SEED_MODE = "mean"   # "mean" or 1/2/3
+INITIAL_AMOUNT = 1_000_000
+ANNUAL_FACTOR = 252
+
+print("PRED_ABLATION_DIR =", PRED_ABLATION_DIR)
+print("OUT_DIR =", OUT_DIR)
+print("GENERATED_FINRL_DIR =", GENERATED_FINRL_DIR)
+print("BASE_FULL_MGT_CSV =", BASE_FULL_MGT_CSV, "| exists=", BASE_FULL_MGT_CSV.exists())
+print("TECH_CLOSE_CSV =", TECH_CLOSE_CSV, "| exists=", TECH_CLOSE_CSV.exists())
+
+OUTPUT
+PRED_ABLATION_DIR = D:\paper\onging\ablation_tech
+OUT_DIR = D:\paper\onging\ablation_tech\forecast_to_policy_equal_weight
+GENERATED_FINRL_DIR = D:\paper\onging\ablation_tech\finrl_csv_equal_weight
+BASE_FULL_MGT_CSV = D:\paper\onging\data\graph\techtrade20241231.csv | exists= True
+TECH_CLOSE_CSV = D:\paper\onging\data\tech\techclose.csv | exists= False
+
+CELL 2
+# ===============================
+# 1. Metrics
+# ===============================
+
+def compute_metrics_from_returns(df_ret: pd.DataFrame, label: str, variant: str, policy: str):
+    df = df_ret.copy()
+    if "daily_return" not in df.columns:
+        if "account_value" not in df.columns:
+            raise ValueError("df_ret must contain daily_return or account_value")
+        df["daily_return"] = df["account_value"].pct_change().fillna(0.0)
+    if "account_value" not in df.columns:
+        df["account_value"] = INITIAL_AMOUNT * (1.0 + df["daily_return"].astype(float)).cumprod()
+
+    daily_ret = df["daily_return"].astype(float).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    account = df["account_value"].astype(float).replace([np.inf, -np.inf], np.nan).ffill().bfill()
+
+    final_value = float(account.iloc[-1])
+    cr = final_value / INITIAL_AMOUNT - 1.0
+    n = max(len(account) - 1, 1)
+    ar = (final_value / INITIAL_AMOUNT) ** (ANNUAL_FACTOR / n) - 1.0
+    vol = daily_ret.std(ddof=1) * np.sqrt(ANNUAL_FACTOR)
+    sr = ar / vol if vol and vol > 1e-12 else np.nan
+
+    running_max = account.cummax()
+    drawdown = account / running_max - 1.0
+    mdd = float(drawdown.min())
+    calmar = ar / abs(mdd) if abs(mdd) > 1e-12 else np.nan
+
+    downside = np.minimum(daily_ret.values, 0.0)
+    downside_dev = np.sqrt(ANNUAL_FACTOR * np.mean(downside ** 2))
+    sortino = ar / downside_dev if downside_dev > 1e-12 else np.nan
+
+    return {
+        "variant": variant,
+        "agent": policy,
+        "Method": label,
+        "Best policy": policy,
+        "CR": cr,
+        "AR": ar,
+        "Vol": vol,
+        "SR": sr,
+        "MDD": mdd,
+        "Calmar": calmar,
+        "Sortino": sortino,
+        "FinalAccountValue": final_value,
+    }
+
+CELL 3
+# ===============================
+# 2. Read close matrix and prediction matrices
+# ===============================
+
+def _check_required_columns(df: pd.DataFrame, path: Path):
+    required = {"date", "tic", "close"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"{path} missing required columns: {missing}")
+
+
+def load_close_matrix_and_scaler():
+    if TECH_CLOSE_CSV.exists():
+        close = pd.read_csv(TECH_CLOSE_CSV, index_col=0)
+        source = TECH_CLOSE_CSV
+    else:
+        if not BASE_FULL_MGT_CSV.exists():
+            raise FileNotFoundError(f"Cannot find {TECH_CLOSE_CSV} or {BASE_FULL_MGT_CSV}")
+        base = pd.read_csv(BASE_FULL_MGT_CSV)
+        _check_required_columns(base, BASE_FULL_MGT_CSV)
+        base["date"] = pd.to_datetime(base["date"]).dt.strftime("%Y-%m-%d")
+        close = base.pivot_table(index="date", columns="tic", values="close", aggfunc="last")
+        source = BASE_FULL_MGT_CSV
+        print(f"[INFO] TECH_CLOSE_CSV not found. Built close matrix from {BASE_FULL_MGT_CSV.name}.")
+
+    close.index = pd.to_datetime(close.index).strftime("%Y-%m-%d")
+    close = close.sort_index()
+    close = close.apply(pd.to_numeric, errors="coerce").ffill().bfill()
+    scaler = MinMaxScaler(feature_range=(-1, 1))
+    scaler.fit(close.values)
+    print(f"Close matrix source = {source}; shape = {close.shape}")
+    return close, scaler
+
+
+def find_prediction_files(tag: str):
+    # 优先读取 *_pred_raw.csv，认为已经是真实价格尺度；否则读取 *_pred.csv 并 inverse_transform。
+    raw_files = sorted(PRED_ABLATION_DIR.glob(f"{tag}_seed*_pred_raw.csv"))
+    if raw_files:
+        return raw_files
+    return sorted(PRED_ABLATION_DIR.glob(f"{tag}_seed*_pred.csv"))
+
+
+def _read_one_prediction_file(path: Path):
+    df = pd.read_csv(path)
+    file_dates = None
+    date_cols = [c for c in df.columns if str(c).lower() in ["date", "datetime", "trade_date"]]
+    if date_cols:
+        file_dates = pd.to_datetime(df[date_cols[0]]).dt.strftime("%Y-%m-%d").tolist()
+        df = df.drop(columns=date_cols)
+    unnamed = [c for c in df.columns if str(c).lower().startswith("unnamed")]
+    if unnamed:
+        df = df.drop(columns=unnamed)
+    return df.astype(float).values, file_dates
+
+
+def read_prediction_matrix(tag: str, seed_mode="mean"):
+    if seed_mode == "mean":
+        files = find_prediction_files(tag)
+        if not files:
+            raise FileNotFoundError(f"Cannot find prediction files for {tag} in {PRED_ABLATION_DIR}")
+        mats, date_candidates = [], []
+        for f in files:
+            mat, dates = _read_one_prediction_file(f)
+            mats.append(mat)
+            if dates is not None:
+                date_candidates.append(dates)
+        shapes = {m.shape for m in mats}
+        if len(shapes) != 1:
+            raise ValueError(f"{tag}: prediction shapes are inconsistent: {shapes}")
+        file_dates = date_candidates[0] if date_candidates else None
+        return np.mean(np.stack(mats, axis=0), axis=0), files, file_dates
+    else:
+        seed = int(seed_mode)
+        raw_file = PRED_ABLATION_DIR / f"{tag}_seed{seed}_pred_raw.csv"
+        normal_file = PRED_ABLATION_DIR / f"{tag}_seed{seed}_pred.csv"
+        f = raw_file if raw_file.exists() else normal_file
+        if not f.exists():
+            raise FileNotFoundError(f"Cannot find {raw_file} or {normal_file}")
+        mat, dates = _read_one_prediction_file(f)
+        return mat, [f], dates
+
+
+def prediction_dates_from_close(close_df: pd.DataFrame, n_rows: int, start_date: str, end_date: str, file_dates=None):
+    if file_dates is not None and len(file_dates) == n_rows:
+        return file_dates
+    all_dates = pd.Series(close_df.index, name="date")
+    selected = all_dates[(all_dates >= start_date) & (all_dates <= end_date)].tolist()
+    if len(selected) == n_rows:
+        return selected
+    if len(selected) > n_rows:
+        print(f"[WARN] selected dates={len(selected)} but pred rows={n_rows}; using first {n_rows} dates from {start_date}.")
+        return selected[:n_rows]
+    raise ValueError(
+        f"Prediction rows ({n_rows}) exceed selected trading dates ({len(selected)}). "
+        f"Please check PREDICTION_START/PREDICTION_END or prediction file date range."
+    )
+
+CELL 4
+# ===============================
+# 3. Build A0-A9 FinRL-style CSVs from prediction outputs
+# ===============================
+
+def generated_finrl_csv_path(tag: str) -> Path:
+    return GENERATED_FINRL_DIR / f"techtrade20241231_{tag}.csv"
+
+
+def build_variant_finrl_csv_from_pred(tag: str):
+    pred_values, used_files, file_dates = read_prediction_matrix(tag, seed_mode=PRED_SEED_MODE)
+    close_df, scaler = load_close_matrix_and_scaler()
+    tickers = close_df.columns.astype(str).tolist()
+    if pred_values.shape[1] != len(tickers):
+        raise ValueError(f"{tag}: prediction columns {pred_values.shape[1]} != ticker number {len(tickers)}")
+
+    used_raw_price = all("_pred_raw" in Path(p).name for p in used_files)
+    if used_raw_price:
+        pred_real = pred_values
+    else:
+        pred_real = scaler.inverse_transform(pred_values)
+
+    dates = prediction_dates_from_close(
+        close_df, pred_real.shape[0], PREDICTION_START, PREDICTION_END, file_dates=file_dates
+    )
+    pred_wide = pd.DataFrame(pred_real, index=dates, columns=tickers)
+    pred_wide.index.name = "date"
+    pred_long = pred_wide.reset_index().melt(id_vars="date", var_name="tic", value_name="pred_close")
+
+    base = pd.read_csv(BASE_FULL_MGT_CSV)
+    _check_required_columns(base, BASE_FULL_MGT_CSV)
+    base["date"] = pd.to_datetime(base["date"]).dt.strftime("%Y-%m-%d")
+    base["tic"] = base["tic"].astype(str)
+
+    missing_tickers = set(tickers) - set(base["tic"].unique())
+    if missing_tickers:
+        raise ValueError(f"{tag}: tickers not found in base csv: {sorted(missing_tickers)[:10]}")
+
+    merged = base.merge(pred_long, on=["date", "tic"], how="left")
+    replace_mask = merged["pred_close"].notna()
+    merged.loc[replace_mask, "close"] = merged.loc[replace_mask, "pred_close"]
+    merged = merged.drop(columns=["pred_close"])
+
+    out = generated_finrl_csv_path(tag)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    merged.to_csv(out, index=False, encoding="utf-8-sig")
+    print(f"[OK] {tag}: {out}; used {[p.name for p in used_files]}; replaced rows={int(replace_mask.sum())}")
+    return out
+
+
+def resolve_variant_csv(tag: str) -> Path:
+    p = generated_finrl_csv_path(tag)
+    if p.exists():
+        return p
+    if tag == "A0_Full_MGT" and BASE_FULL_MGT_CSV.exists():
+        return BASE_FULL_MGT_CSV
+    return p
+
+# Auto generate all available variants
+for tag in ALL_VARIANTS:
+    try:
+        build_variant_finrl_csv_from_pred(tag)
+    except Exception as e:
+        print(f"[WARN] {tag}: {e}")
+
+RL_ABLATION_INPUTS = {tag: resolve_variant_csv(tag) for tag in ALL_VARIANTS}
+print("\nRefreshed mapping:")
+for tag, p in RL_ABLATION_INPUTS.items():
+    print(f"{tag:25s} -> {p} | exists={Path(p).exists()}")
+
+OUTPUT
+[INFO] TECH_CLOSE_CSV not found. Built close matrix from techtrade20241231.csv.
+Close matrix source = D:\paper\onging\data\graph\techtrade20241231.csv; shape = (1699, 15)
+[OK] A0_Full_MGT: D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A0_Full_MGT.csv; used ['A0_Full_MGT_seed1_pred_raw.csv', 'A0_Full_MGT_seed2_pred_raw.csv', 'A0_Full_MGT_seed3_pred_raw.csv']; replaced rows=3630
+[INFO] TECH_CLOSE_CSV not found. Built close matrix from techtrade20241231.csv.
+Close matrix source = D:\paper\onging\data\graph\techtrade20241231.csv; shape = (1699, 15)
+[OK] A1_Transformer_only: D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A1_Transformer_only.csv; used ['A1_Transformer_only_seed1_pred_raw.csv', 'A1_Transformer_only_seed2_pred_raw.csv', 'A1_Transformer_only_seed3_pred_raw.csv']; replaced rows=3630
+[INFO] TECH_CLOSE_CSV not found. Built close matrix from techtrade20241231.csv.
+Close matrix source = D:\paper\onging\data\graph\techtrade20241231.csv; shape = (1699, 15)
+[OK] A2_MGNN_only: D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A2_MGNN_only.csv; used ['A2_MGNN_only_seed1_pred_raw.csv', 'A2_MGNN_only_seed2_pred_raw.csv', 'A2_MGNN_only_seed3_pred_raw.csv']; replaced rows=3630
+[INFO] TECH_CLOSE_CSV not found. Built close matrix from techtrade20241231.csv.
+Close matrix source = D:\paper\onging\data\graph\techtrade20241231.csv; shape = (1699, 15)
+[OK] A3_SH_only: D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A3_SH_only.csv; used ['A3_SH_only_seed1_pred_raw.csv', 'A3_SH_only_seed2_pred_raw.csv', 'A3_SH_only_seed3_pred_raw.csv']; replaced rows=3630
+[INFO] TECH_CLOSE_CSV not found. Built close matrix from techtrade20241231.csv.
+Close matrix source = D:\paper\onging\data\graph\techtrade20241231.csv; shape = (1699, 15)
+[OK] A4_QA_only: D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A4_QA_only.csv; used ['A4_QA_only_seed1_pred_raw.csv', 'A4_QA_only_seed2_pred_raw.csv', 'A4_QA_only_seed3_pred_raw.csv']; replaced rows=3630
+[INFO] TECH_CLOSE_CSV not found. Built close matrix from techtrade20241231.csv.
+Close matrix source = D:\paper\onging\data\graph\techtrade20241231.csv; shape = (1699, 15)
+[OK] A5_KD_only: D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A5_KD_only.csv; used ['A5_KD_only_seed1_pred_raw.csv', 'A5_KD_only_seed2_pred_raw.csv', 'A5_KD_only_seed3_pred_raw.csv']; replaced rows=3630
+[INFO] TECH_CLOSE_CSV not found. Built close matrix from techtrade20241231.csv.
+Close matrix source = D:\paper\onging\data\graph\techtrade20241231.csv; shape = (1699, 15)
+[OK] A6_SH_QA: D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A6_SH_QA.csv; used ['A6_SH_QA_seed1_pred_raw.csv', 'A6_SH_QA_seed2_pred_raw.csv', 'A6_SH_QA_seed3_pred_raw.csv']; replaced rows=3630
+[INFO] TECH_CLOSE_CSV not found. Built close matrix from techtrade20241231.csv.
+Close matrix source = D:\paper\onging\data\graph\techtrade20241231.csv; shape = (1699, 15)
+[OK] A7_SH_KD: D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A7_SH_KD.csv; used ['A7_SH_KD_seed1_pred_raw.csv', 'A7_SH_KD_seed2_pred_raw.csv', 'A7_SH_KD_seed3_pred_raw.csv']; replaced rows=3630
+[INFO] TECH_CLOSE_CSV not found. Built close matrix from techtrade20241231.csv.
+Close matrix source = D:\paper\onging\data\graph\techtrade20241231.csv; shape = (1699, 15)
+[OK] A8_QA_KD: D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A8_QA_KD.csv; used ['A8_QA_KD_seed1_pred_raw.csv', 'A8_QA_KD_seed2_pred_raw.csv', 'A8_QA_KD_seed3_pred_raw.csv']; replaced rows=3630
+[INFO] TECH_CLOSE_CSV not found. Built close matrix from techtrade20241231.csv.
+Close matrix source = D:\paper\onging\data\graph\techtrade20241231.csv; shape = (1699, 15)
+[OK] A9_Fixed_fusion: D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A9_Fixed_fusion.csv; used ['A9_Fixed_fusion_seed1_pred_raw.csv', 'A9_Fixed_fusion_seed2_pred_raw.csv', 'A9_Fixed_fusion_seed3_pred_raw.csv']; replaced rows=3630
+
+Refreshed mapping:
+A0_Full_MGT               -> D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A0_Full_MGT.csv | exists=True
+A1_Transformer_only       -> D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A1_Transformer_only.csv | exists=True
+A2_MGNN_only              -> D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A2_MGNN_only.csv | exists=True
+A3_SH_only                -> D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A3_SH_only.csv | exists=True
+A4_QA_only                -> D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A4_QA_only.csv | exists=True
+A5_KD_only                -> D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A5_KD_only.csv | exists=True
+A6_SH_QA                  -> D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A6_SH_QA.csv | exists=True
+A7_SH_KD                  -> D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A7_SH_KD.csv | exists=True
+A8_QA_KD                  -> D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A8_QA_KD.csv | exists=True
+A9_Fixed_fusion           -> D:\paper\onging\ablation_tech\finrl_csv_equal_weight\techtrade20241231_A9_Fixed_fusion.csv | exists=True
+
+CELL 5
+# ===============================
+# 4. Equal-weight and buy-and-hold baselines
+# ===============================
+
+def load_trade_close(csv_path: Path):
+    df = pd.read_csv(csv_path)
+    _check_required_columns(df, csv_path)
+    df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+    df["tic"] = df["tic"].astype(str)
+    mask = (df["date"] >= TRADE_START) & (df["date"] <= TRADE_END)
+    trade = df.loc[mask].copy()
+    if trade.empty:
+        raise ValueError(f"No trade data in {TRADE_START} ~ {TRADE_END}: {csv_path}")
+    price = trade.pivot_table(index="date", columns="tic", values="close", aggfunc="last").sort_index()
+    price = price.apply(pd.to_numeric, errors="coerce").ffill().bfill()
+    return price
+
+
+def equal_weight_rebalanced_baseline(price: pd.DataFrame):
+    asset_ret = price.pct_change().fillna(0.0)
+    daily_ret = asset_ret.mean(axis=1)
+    out = pd.DataFrame({"date": daily_ret.index, "daily_return": daily_ret.values})
+    out["account_value"] = INITIAL_AMOUNT * (1.0 + out["daily_return"]).cumprod()
+    return out
+
+
+def buy_and_hold_equal_initial_baseline(price: pd.DataFrame):
+    rel = price / price.iloc[0]
+    curve = rel.mean(axis=1)
+    daily_ret = curve.pct_change().fillna(0.0)
+    out = pd.DataFrame({"date": daily_ret.index, "daily_return": daily_ret.values})
+    out["account_value"] = INITIAL_AMOUNT * curve.values
+    return out
+
+rows = []
+for tag, path in RL_ABLATION_INPUTS.items():
+    path = Path(path)
+    if not path.exists():
+        print(f"[SKIP] {tag}: {path} not found")
+        continue
+    price = load_trade_close(path)
+    eq = equal_weight_rebalanced_baseline(price)
+    bh = buy_and_hold_equal_initial_baseline(price)
+
+    eq_path = OUT_DIR / f"{tag}_EqualWeight_Rebalanced_daily_return.csv"
+    bh_path = OUT_DIR / f"{tag}_BuyHold_EqualInitial_daily_return.csv"
+    eq.to_csv(eq_path, index=False, encoding="utf-8-sig")
+    bh.to_csv(bh_path, index=False, encoding="utf-8-sig")
+
+    rows.append(compute_metrics_from_returns(eq, tag.replace("_", " "), tag, "Equal Weight"))
+    rows.append(compute_metrics_from_returns(bh, tag.replace("_", " "), tag, "Buy-and-Hold"))
+
+raw_df = pd.DataFrame(rows)
+raw_path = OUT_DIR / "forecast_to_policy_equal_weight_raw_results.csv"
+raw_df.to_csv(raw_path, index=False, encoding="utf-8-sig")
+print("Saved:", raw_path)
+display(raw_df)
+
+OUTPUT
+Saved: D:\paper\onging\ablation_tech\forecast_to_policy_equal_weight\forecast_to_policy_equal_weight_raw_results.csv
+
+OUTPUT
+                variant         agent               Method   Best policy  \
+0           A0_Full_MGT  Equal Weight          A0 Full MGT  Equal Weight   
+1           A0_Full_MGT  Buy-and-Hold          A0 Full MGT  Buy-and-Hold   
+2   A1_Transformer_only  Equal Weight  A1 Transformer only  Equal Weight   
+3   A1_Transformer_only  Buy-and-Hold  A1 Transformer only  Buy-and-Hold   
+4          A2_MGNN_only  Equal Weight         A2 MGNN only  Equal Weight   
+5          A2_MGNN_only  Buy-and-Hold         A2 MGNN only  Buy-and-Hold   
+6            A3_SH_only  Equal Weight           A3 SH only  Equal Weight   
+7            A3_SH_only  Buy-and-Hold           A3 SH only  Buy-and-Hold   
+8            A4_QA_only  Equal Weight           A4 QA only  Equal Weight   
+9            A4_QA_only  Buy-and-Hold           A4 QA only  Buy-and-Hold   
+10           A5_KD_only  Equal Weight           A5 KD only  Equal Weight   
+11           A5_KD_only  Buy-and-Hold           A5 KD only  Buy-and-Hold   
+12             A6_SH_QA  Equal Weight             A6 SH QA  Equal Weight   
+13             A6_SH_QA  Buy-and-Hold             A6 SH QA  Buy-and-Hold   
+14             A7_SH_KD  Equal Weight             A7 SH KD  Equal Weight   
+15             A7_SH_KD  Buy-and-Hold             A7 SH KD  Buy-and-Hold   
+16             A8_QA_KD  Equal Weight             A8 QA KD  Equal Weight   
+17             A8_QA_KD  Buy-and-Hold             A8 QA KD  Buy-and-Hold   
+18      A9_Fixed_fusion  Equal Weight      A9 Fixed fusion  Equal Weight   
+19      A9_Fixed_fusion  Buy-and-Hold      A9 Fixed fusion  Buy-and-Hold   
+
+          CR        AR       Vol        SR       MDD    Calmar   Sortino  \
+0  -0.311993 -0.177254  0.326410 -0.543040 -0.517413 -0.342577 -0.779813   
+1  -0.320858 -0.182802  0.324741 -0.562917 -0.507475 -0.360219 -0.785075   
+2  -0.311993 -0.177254  0.326410 -0.543040 -0.517413 -0.342577 -0.779813   
+3  -0.320858 -0.182802  0.324741 -0.562917 -0.507475 -0.360219 -0.785075   
+4  -0.311993 -0.177254  0.326410 -0.543040 -0.517413 -0.342577 -0.779813   
+5  -0.320858 -0.182802  0.324741 -0.562917 -0.507475 -0.360219 -0.785075   
+6  -0.311993 -0.177254  0.326410 -0.543040 -0.517413 -0.342577 -0.779813   
+7  -0.320858 -0.182802  0.324741 -0.562917 -0.507475 -0.360219 -0.785075   
+8  -0.311993 -0.177254  0.326410 -0.543040 -0.517413 -0.342577 -0.779813   
+9  -0.320858 -0.182802  0.324741 -0.562917 -0.507475 -0.360219 -0.785075   
+10 -0.311993 -0.177254  0.326410 -0.543040 -0.517413 -0.342577 -0.779813   
+11 -0.320858 -0.182802  0.324741 -0.562917 -0.507475 -0.360219 -0.785075   
+12 -0.311993 -0.177254  0.326410 -0.543040 -0.517413 -0.342577 -0.779813   
+13 -0.320858 -0.182802  0.324741 -0.562917 -0.507475 -0.360219 -0.785075   
+14 -0.311993 -0.177254  0.326410 -0.543040 -0.517413 -0.342577 -0.779813   
+15 -0.320858 -0.182802  0.324741 -0.562917 -0.507475 -0.360219 -0.785075   
+16 -0.311993 -0.177254  0.326410 -0.543040 -0.517413 -0.342577 -0.779813   
+17 -0.320858 -0.182802  0.324741 -0.562917 -0.507475 -0.360219 -0.785075   
+18 -0.311993 -0.177254  0.326410 -0.543040 -0.517413 -0.342577 -0.779813   
+19 -0.320858 -0.182802  0.324741 -0.562917 -0.507475 -0.360219 -0.785075   
+
+    FinalAccountValue  
+0       688007.269159  
+1       679142.106929  
+2       688007.269159  
+3       679142.106929  
+4       688007.269159  
+5       679142.106929  
+6       688007.269159  
+7       679142.106929  
+8       688007.269159  
+9       679142.106929  
+10      688007.269159  
+11      679142.106929  
+12      688007.269159  
+13      679142.106929  
+14      688007.269159  
+15      679142.106929  
+16      688007.269159  
+17      679142.106929  
+18      688007.269159  
+19      679142.106929  
+CELL 6
+# ===============================
+# 5. Paper table: Equal Weight only, same format as bank forecast_to_policy_equal_weight
+# ===============================
+
+def _method_name(x):
+    return str(x).replace("_", " ").replace("SH QA", "SH+QA").replace("SH KD", "SH+KD").replace("QA KD", "QA+KD")
+
+paper = raw_df[raw_df["agent"] == "Equal Weight"].copy()
+paper = paper.sort_values("variant")
+paper["Method"] = paper["variant"].map(_method_name)
+paper["Best policy"] = "Equal Weight"
+
+paper_cols = ["Method", "Best policy", "CR", "AR", "SR", "MDD", "Calmar", "Sortino", "FinalAccountValue"]
+paper_out = paper[paper_cols].copy()
+paper_path = OUT_DIR / "forecast_to_policy_equal_weight_table.csv"
+paper_out.to_csv(paper_path, index=False, encoding="utf-8-sig")
+print("Saved:", paper_path)
+
+def write_latex_equal_weight(df, out_path):
+    best_cols = ["CR", "AR", "SR", "Calmar", "Sortino", "FinalAccountValue"]
+    best_idx = {c: df[c].idxmax() for c in best_cols}
+    best_idx["MDD"] = df["MDD"].abs().idxmin()
+    def fmt(col, val, idx):
+        text = f"{val:,.0f}" if col == "FinalAccountValue" else f"{val:.4f}"
+        return r"\textbf{" + text + "}" if best_idx.get(col)==idx else text
+    lines = []
+    lines.append(r"\begin{table*}[t]")
+    lines.append(r"\centering")
+    lines.append(r"\caption{Forecast-to-policy equal-weight ablation results on the healthcare innovation sector.}")
+    lines.append(r"\label{tab:healthcare_forecast_policy_equal_weight}")
+    lines.append(r"\resizebox{\textwidth}{!}{")
+    lines.append(r"\begin{tabular}{llccccccc}")
+    lines.append(r"\toprule")
+    lines.append(r"Method & Best policy & CR & AR & SR & MDD & Calmar & Sortino & Final value \\")
+    lines.append(r"\midrule")
+    for idx, row in df.iterrows():
+        lines.append(
+            f"{row['Method']} & {row['Best policy']} & "
+            f"{fmt('CR', row['CR'], idx)} & {fmt('AR', row['AR'], idx)} & {fmt('SR', row['SR'], idx)} & "
+            f"{fmt('MDD', row['MDD'], idx)} & {fmt('Calmar', row['Calmar'], idx)} & "
+            f"{fmt('Sortino', row['Sortino'], idx)} & {fmt('FinalAccountValue', row['FinalAccountValue'], idx)} \\")
+    lines.append(r"\bottomrule")
+    lines.append(r"\end{tabular}")
+    lines.append(r"}")
+    lines.append(r"\vspace{1mm}")
+    lines.append(r"\parbox{\textwidth}{\footnotesize Note: For each ablation variant, the reported row corresponds to Equal Weight Rebalanced allocation under the corresponding forecast-driven price state. CR, AR, SR, MDD, Calmar, and Sortino denote cumulative return, annualized return, Sharpe ratio, maximum drawdown, Calmar ratio, and Sortino ratio, respectively. For MDD, a value closer to zero indicates a smaller drawdown.}")
+    lines.append(r"\end{table*}")
+    out_path.write_text("\n".join(lines), encoding="utf-8")
+    print("Saved:", out_path)
+
+latex_path = OUT_DIR / "forecast_to_policy_equal_weight_table.tex"
+write_latex_equal_weight(paper_out, latex_path)
+display(paper_out)
+
+OUTPUT
+Saved: D:\paper\onging\ablation_tech\forecast_to_policy_equal_weight\forecast_to_policy_equal_weight_table.csv
+Saved: D:\paper\onging\ablation_tech\forecast_to_policy_equal_weight\forecast_to_policy_equal_weight_table.tex
+
+OUTPUT
+                 Method   Best policy        CR        AR       SR       MDD  \
+0           A0 Full MGT  Equal Weight -0.311993 -0.177254 -0.54304 -0.517413   
+2   A1 Transformer only  Equal Weight -0.311993 -0.177254 -0.54304 -0.517413   
+4          A2 MGNN only  Equal Weight -0.311993 -0.177254 -0.54304 -0.517413   
+6            A3 SH only  Equal Weight -0.311993 -0.177254 -0.54304 -0.517413   
+8            A4 QA only  Equal Weight -0.311993 -0.177254 -0.54304 -0.517413   
+10           A5 KD only  Equal Weight -0.311993 -0.177254 -0.54304 -0.517413   
+12             A6 SH+QA  Equal Weight -0.311993 -0.177254 -0.54304 -0.517413   
+14             A7 SH+KD  Equal Weight -0.311993 -0.177254 -0.54304 -0.517413   
+16             A8 QA+KD  Equal Weight -0.311993 -0.177254 -0.54304 -0.517413   
+18      A9 Fixed fusion  Equal Weight -0.311993 -0.177254 -0.54304 -0.517413   
+
+      Calmar   Sortino  FinalAccountValue  
+0  -0.342577 -0.779813      688007.269159  
+2  -0.342577 -0.779813      688007.269159  
+4  -0.342577 -0.779813      688007.269159  
+6  -0.342577 -0.779813      688007.269159  
+8  -0.342577 -0.779813      688007.269159  
+10 -0.342577 -0.779813      688007.269159  
+12 -0.342577 -0.779813      688007.269159  
+14 -0.342577 -0.779813      688007.269159  
+16 -0.342577 -0.779813      688007.269159  
+18 -0.342577 -0.779813      688007.269159  
+CELL 7
+# ===============================
+# 6. Plot account-value curves for Equal Weight variants
+# ===============================
+
+plt.figure(figsize=(9.5, 5.2))
+for tag in ALL_VARIANTS:
+    f = OUT_DIR / f"{tag}_EqualWeight_Rebalanced_daily_return.csv"
+    if not f.exists():
+        continue
+    df = pd.read_csv(f)
+    label = tag.replace("_", " ").replace("SH QA", "SH+QA").replace("SH KD", "SH+KD").replace("QA KD", "QA+KD")
+    plt.plot(pd.to_datetime(df["date"]), df["account_value"], linewidth=1.6, label=label)
+
+plt.xlabel("Date")
+plt.ylabel("Account value")
+plt.title("Healthcare innovation sector: A0--A9 equal-weight account value curves")
+plt.legend(fontsize=7, ncol=2)
+plt.tight_layout()
+svg_path = OUT_DIR / "healthcare_forecast_to_policy_equal_weight_account_value.svg"
+pdf_path = OUT_DIR / "healthcare_forecast_to_policy_equal_weight_account_value.pdf"
+plt.savefig(svg_path, dpi=300, bbox_inches="tight")
+plt.savefig(pdf_path, dpi=300, bbox_inches="tight")
+plt.show()
+print("Saved:", svg_path)
+print("Saved:", pdf_path)
+
+OUTPUT
+Saved: D:\paper\onging\ablation_tech\forecast_to_policy_equal_weight\healthcare_forecast_to_policy_equal_weight_account_value.svg
+Saved: D:\paper\onging\ablation_tech\forecast_to_policy_equal_weight\healthcare_forecast_to_policy_equal_weight_account_value.pdf
+
+OUTPUT
+C:\Users\perfe\AppData\Local\Temp\ipykernel_10328\972783662.py:23: UserWarning: Matplotlib is currently using agg, which is a non-GUI backend, so cannot show the figure.
+  plt.show()
+
+CELL 8

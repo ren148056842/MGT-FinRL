@@ -1,0 +1,1909 @@
+CELL 0
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import tensorflow as tf
+from sklearn.model_selection import train_test_split
+np.set_printoptions(suppress=True)
+from sklearn.preprocessing import MinMaxScaler
+from keras.models import Sequential
+from keras.layers import Dense, LSTM, Dropout, GRU, Bidirectional
+from keras.optimizers import SGD
+from keras.models import Sequential
+
+from keras.callbacks import History
+from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint, TensorBoard
+CELL 1
+technique_indicatorttm = np.load('*********_matrix_ttm.npy',allow_pickle=True)
+technique_indicatorpbr = np.load('*********_matrix_pbr.npy',allow_pickle=True)
+technique_indicatorps = np.load('*********_matrix_ps.npy',allow_pickle=True)
+technique_indicatorpcf = np.load('*********_matrix_pcf.npy',allow_pickle=True)
+sample_data = np.concatenate((technique_indicatorttm,technique_indicatorpbr,technique_indicatorps,technique_indicatorpcf),axis=2)
+sample_data[pd.isna(sample_data)] = 5
+sample_data.shape
+OUTPUT
+(1215, 15, 12)
+CELL 2
+data = pd.read_csv('*********close.csv',index_col=0)
+CELL 3
+data.shape
+#data[pd.isna(data)] = 5
+from sklearn.preprocessing import MinMaxScaler
+data_scaler = MinMaxScaler(feature_range=(-1, 1))
+data_dataset = data_scaler.fit_transform(data)
+data_dataset.shape
+OUTPUT
+(1215, 15)
+CELL 4
+p=1
+Label_data_2 = data_dataset[p-1:,:]
+Label_data_2.shape
+OUTPUT
+(1215, 15)
+CELL 5
+#input 部分
+input_data = sample_data[:,:,:]
+input_data.shape
+OUTPUT
+(1215, 15, 12)
+CELL 6
+input_data_final = np.zeros((input_data.shape[0]+1-p,p,input_data.shape[1],input_data.shape[2]))
+input_data_final.shape
+OUTPUT
+(1215, 1, 15, 12)
+CELL 7
+for i in range(input_data.shape[0]+1-p):
+    one_line = []
+    for j in range(p):
+        one_line.append(input_data[i+j])
+        
+    input_data_final[i] = np.array(one_line)
+CELL 8
+N=15
+M=1215
+P=1
+F=12
+TEST_SIZE = 0.3 # the test and val size of dataset
+RANDOM_STATE = 4
+CELL 9
+T = np.load('*********shareholding_relation_adjacent_matrix_tongyi.npy')
+I= np.load('*********bank_qa_graph.npy')
+S=np.load('*********bankvolume_kendall.npy')
+Fixed_Matrices = [S,I,T]
+CELL 10
+# T = np.random.normal(size=(N,N))
+ #I = np.random.normal(size=(N,N))
+ #S = np.random.normal(size=(N,N))
+# I=T
+ #S=T
+CELL 11
+samples = input_data_final#np.random.normal(size=(M, P, N, F))
+labels = Label_data_2#np.random.normal(size=(M, N))
+CELL 12
+indices = np.arange(data.shape[0]).reshape(-1, 1)
+label_with_index = np.hstack((indices, labels)) 
+label_with_index
+OUTPUT
+array([[   0.        ,   -0.37842779,    0.73466476, ...,    0.11597374,
+           0.12359551,    0.06426735],
+       [   1.        ,   -0.42352224,    0.71754636, ...,    0.09846827,
+           0.14606742,    0.08997429],
+       [   2.        ,   -0.43327239,    0.71754636, ...,    0.03719912,
+           0.14606742,    0.10025707],
+       ...,
+       [1212.        ,   -0.44667885,   -0.81169757, ...,   -0.8380744 ,
+          -0.79775281,   -0.62467866],
+       [1213.        ,   -0.46008531,   -0.82881598, ...,   -0.84682713,
+          -0.80898876,   -0.6503856 ],
+       [1214.        ,   -0.44424132,   -0.81740371, ...,   -0.82932166,
+          -0.79775281,   -0.62467866]])
+CELL 13
+x_train, x_test, y_train, y_test = train_test_split(samples, label_with_index, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+x_test, x_val, y_test, y_val = train_test_split(x_test, y_test, test_size=0.33, random_state=RANDOM_STATE)
+print(x_train.shape, y_train.shape)
+print(x_test.shape, y_test.shape)
+print(x_val.shape, y_val.shape)
+OUTPUT
+(850, 1, 15, 12) (850, 16)
+(244, 1, 15, 12) (244, 16)
+(121, 1, 15, 12) (121, 16)
+
+CELL 14
+x_train = tf.constant(x_train,dtype=tf.float32)
+y_train = tf.constant(y_train,dtype=tf.float32)
+x_test = tf.constant(x_test,dtype=tf.float32)
+y_test = tf.constant(y_test,dtype=tf.float32)
+x_val = tf.constant(x_val,dtype=tf.float32)
+y_val= tf.constant(y_val,dtype=tf.float32)
+CELL 15
+first_column_y_test = y_test[:, 0]
+y_test1= y_test[:, 1:]
+first_column_y_train = y_train[:, 0]
+y_train1= y_train[:, 1:]
+y_val1= y_val[:, 1:]
+first_column_y_val = y_val[:, 0]
+y_val2 = data_scaler.inverse_transform(y_val1)
+y_train2=data_scaler.inverse_transform(y_train1)
+CELL 16
+import tensorflow as tf
+from tensorflow.keras.layers import MultiHeadAttention, Dense, LayerNormalization, Dropout
+CELL 17
+class GNNTransformer(tf.keras.Model):
+    def __init__(self, N, F, Units_GNN, Units_Transformer, Units_FC,
+                 Fixed_Matrices, Matrix_Weights, Is_Dyn,
+                 num_heads,
+                 dff,
+                 dropout_rate=0.1,
+                 kernel_initializer='glorot_uniform',
+                 bias_initializer='zeros'):
+        super(GNNTransformer, self).__init__()
+        # Number of Nodes
+        self.N = N
+        # the number of input features
+        self.F = F
+        # pre-defined matrices: shape=[(N,N),(N,N),(N,N)]
+        self.mat = Fixed_Matrices
+        
+        if Is_Dyn:
+            self.mats = self.dyn
+        else:
+            self.mats = self.add_weight(name='w_Matrices', shape=(self.N, self.N),
+                                        initializer=tf.keras.initializers.get(kernel_initializer),
+                                        trainable=True)
+            for i in range(len(Matrix_Weights)):
+                coe = tf.Variable(1.0, trainable=True)
+                self.mats = self.mats + Matrix_Weights[i] * self.mat[i] * coe
+        
+        # GNN Weights
+        self.units_gnn = Units_GNN
+        self.w_gnn = []
+        self.b_gnn = []
+        pre = self.F
+        for i in range(len(self.units_gnn)):
+            aft = self.units_gnn[i]
+            w = self.add_weight(name='w_GNN', shape=(pre, aft),
+                                initializer=tf.keras.initializers.get(kernel_initializer),
+                                trainable=True)
+            self.w_gnn.append(w)
+            b = self.add_weight('b_GNN', shape=(aft,),
+                                initializer=tf.keras.initializers.get(bias_initializer),
+                                trainable=True)
+            self.b_gnn.append(b)
+            pre = aft
+        
+        # Transformer parameters
+        self.units_transformer = Units_Transformer
+        self.num_heads = num_heads
+        self.dff = dff
+        self.dropout_rate = dropout_rate
+
+        # Transformer layers
+        self.attention_layers = []
+        self.dense_proj_layers = []
+        self.norm_layers = []
+        self.dropout_layers = []
+        for _ in range(len(self.units_transformer)):
+            self.attention_layers.append(MultiHeadAttention(num_heads=self.num_heads, key_dim=self.units_transformer[0]))
+            self.dense_proj_layers.append(tf.keras.Sequential([
+                Dense(self.dff, activation='relu'),
+                Dense(self.units_transformer[0])
+            ]))
+            self.norm_layers.append(LayerNormalization(epsilon=1e-6))
+            self.dropout_layers.append(Dropout(self.dropout_rate))
+        
+        # FC_weights
+        self.units_fc = Units_FC
+        self.w_fc = []
+        self.b_fc = []
+        pre = self.units_transformer[-1]
+        for i in range(len(self.units_fc)):
+            aft = self.units_fc[i]
+            w = self.add_weight(name='w_FC', shape=(pre, aft),
+                                initializer=tf.keras.initializers.get(kernel_initializer),
+                                trainable=True)
+            self.w_fc.append(w)
+            b = self.add_weight(name='b_FC', shape=(aft,),
+                                initializer=tf.keras.initializers.get(bias_initializer),
+                                trainable=True)
+            self.b_fc.append(b)
+            pre = aft
+    
+    def Multi_GNN(self, inputs):
+        '''
+        inputs: shape=(None, P, N, F)
+        x_gnn: shape=(None, P, N, C)
+        '''
+        P = inputs.shape[1]
+        x_gnn = []
+        for t in range(P):
+            # (None, P, N, F) => (None, N, F)
+            xt_gnn = inputs[:, t, :, :]
+            
+            # (N, N) * (None, N, F) * (F, C) => (None, N, C)
+            for i in range(len(self.units_gnn)):
+                xt_gnn = self.mats @ xt_gnn @ self.w_gnn[i] + self.b_gnn[i]
+                xt_gnn = tf.nn.tanh(xt_gnn)
+            x_gnn.append(xt_gnn)
+        # (None, P, N, C)
+        x_gnn = tf.stack(x_gnn, axis=1)
+        return x_gnn
+    
+    def Transformer(self, x, x_gcn):
+        '''
+        x:shape=(None,P,N,F)
+        x_gcn:shape=(None,P,N,C)
+        x_transformer:shape=(None,N,G)
+        '''
+        # (None, P, N, F+C)
+        x = tf.concat([x, x_gcn], axis=-1)
+
+        for attention_layer, dense_proj_layer, norm_layer, dropout_layer in zip(self.attention_layers, self.dense_proj_layers, self.norm_layers, self.dropout_layers):
+            attn_output = attention_layer(x, x, x)
+            attn_output = dropout_layer(attn_output)
+            x = norm_layer(x + attn_output)
+
+            proj_output = dense_proj_layer(x)
+            proj_output = dropout_layer(proj_output)
+            x = norm_layer(x + proj_output)
+
+        # (None, N, G)
+        x_transformer = x[:, -1, :, :]
+        return x_transformer
+    
+    def FC(self, x_transformed):
+        '''
+        x_transformed:shape=(None, N, units_transformer[-1])
+        outputs: shape=(None, N, 1)
+        '''
+        x = x_transformed
+        for i in range(len(self.w_fc)):
+            x = x @ self.w_fc[i] + self.b_fc[i]
+            x = tf.nn.sigmoid(x)
+        # (None, N)
+        x_fc = tf.squeeze(x, axis=-1)
+        return x_fc
+
+    def build(self, input_shape):
+        super().build(input_shape)
+        
+    def call(self, inputs):
+        '''
+        inputs: shape=(None, P, N, F)
+        x_fc: shape=(None, N)
+        '''
+        # (None, P, N, C)
+        x_gnn = self.Multi_GNN(inputs)
+        # (None, N, G)
+        x_transformer = self.Transformer(inputs, x_gnn)
+        # (None, N)
+        x_fc = self.FC(x_transformer)
+        return x_fc
+
+
+CELL 18
+y_test
+
+OUTPUT
+<tf.Tensor: shape=(244, 16), dtype=float32, numpy=
+array([[ 893.        ,    0.19439366,   -0.26105565, ...,   -0.68490154,
+          -0.92134833,   -0.7789203 ],
+       [ 974.        ,    0.04204753,   -0.4293866 , ...,   -0.65426695,
+          -0.8764045 ,   -0.7892031 ],
+       [ 258.        ,   -0.7867154 ,    0.03566334, ...,   -0.38293216,
+          -0.33707866,   -0.37275064],
+       ...,
+       [1023.        ,   -0.19804996,   -0.660485  , ...,   -0.6586433 ,
+          -0.80898875,   -0.8611825 ],
+       [ 154.        ,   -0.95124924,    0.00142653, ...,   -0.3785558 ,
+          -0.41573033,   -0.21336761],
+       [ 374.        ,   -0.3820841 ,    0.3837375 , ...,   -0.12910284,
+          -0.24719101,   -0.14138818]], dtype=float32)>
+CELL 19
+Units_GNN = [16,32,64]
+Units_Transformer = [76, 76]
+Units_FC = [1]
+Matrix_Weights = [1,1,1]
+Is_Dyn=False
+num_heads= 8
+dff = 256  
+model = GNNTransformer(N, F, Units_GNN, Units_Transformer, Units_FC, Fixed_Matrices, Matrix_Weights,Is_Dyn,num_heads,dff)
+model.build(input_shape=(None, P, N, F))
+model.summary()
+model.compile(loss='categorical_crossentropy',optimizer='SGD',metrics=[tf.keras.metrics.BinaryAccuracy()])
+model_checkpoint = tf.keras.callbacks.ModelCheckpoint(
+    filepath = '*********GNNTransformer',
+    monitor ='val_categorical_crossentropy',
+    save_weights_only = True,
+    save_best_only = True)
+OUTPUT
+Model: "gnn_transformer"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ multi_head_attention (Multi  multiple                 186732    
+ HeadAttention)                                                  
+                                                                 
+ multi_head_attention_1 (Mul  multiple                 186732    
+ tiHeadAttention)                                                
+                                                                 
+ sequential (Sequential)     (None, 1, 15, 76)         39244     
+                                                                 
+ sequential_1 (Sequential)   (None, 1, 15, 76)         39244     
+                                                                 
+ layer_normalization (LayerN  multiple                 152       
+ ormalization)                                                   
+                                                                 
+ layer_normalization_1 (Laye  multiple                 152       
+ rNormalization)                                                 
+                                                                 
+ dropout (Dropout)           multiple                  0         
+                                                                 
+ dropout_1 (Dropout)         multiple                  0         
+                                                                 
+=================================================================
+Total params: 455,197
+Trainable params: 455,197
+Non-trainable params: 0
+_________________________________________________________________
+
+CELL 20
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+
+# 超参数
+Epochs = 50
+Batch_size = 32
+
+# 保存历史记录
+history_list = []
+
+# 重复训练8次
+for run in range(8):
+    print(f"\n======== Training Round {run+1}/8 ========")
+
+    # 模型重新初始化（确保每次训练从头开始）
+    model = GNNTransformer(N, F, Units_GNN, Units_Transformer, Units_FC, Fixed_Matrices, Matrix_Weights, Is_Dyn, num_heads, dff)
+    model.build(input_shape=(None, P, N, F))
+    model.compile(loss='categorical_crossentropy', optimizer='SGD', metrics=[tf.keras.metrics.BinaryAccuracy()])
+
+    # 日志与模型保存
+    tb = tf.keras.callbacks.TensorBoard(log_dir=f"*********GNNTransformer/run{run+1}")
+    model_checkpoint = tf.keras.callbacks.ModelCheckpoint(
+        filepath=f'*********GNNTransformer_run{run+1}.h5',
+        monitor='val_loss8',
+        save_best_only=True,
+        save_weights_only=True,
+        verbose=0
+    )
+
+    # 模型训练
+    history = model.fit(
+        x_train, y_train1,
+        batch_size=Batch_size,
+        epochs=Epochs,
+        validation_data=(x_val, y_val1),
+        callbacks=[model_checkpoint, tb],
+        verbose=1
+    )
+    history_list.append(history)
+
+OUTPUT
+
+======== Training Round 1/8 ========
+Epoch 1/50
+26/27 [===========================>..] - ETA: 0s - loss: -41.9062 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 12s 150ms/step - loss: -42.3684 - binary_accuracy: 2.3529e-04 - val_loss: -25.7223 - val_binary_accuracy: 0.0011
+Epoch 2/50
+27/27 [==============================] - ETA: 0s - loss: -44.2083 - binary_accuracy: 3.9216e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -44.2083 - binary_accuracy: 3.9216e-04 - val_loss: -51.9314 - val_binary_accuracy: 5.5096e-04
+Epoch 3/50
+27/27 [==============================] - ETA: 0s - loss: -52.2219 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -52.2219 - binary_accuracy: 7.8431e-04 - val_loss: -61.2319 - val_binary_accuracy: 5.5096e-04
+Epoch 4/50
+26/27 [===========================>..] - ETA: 0s - loss: -48.2486 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -48.0922 - binary_accuracy: 3.1373e-04 - val_loss: -56.8076 - val_binary_accuracy: 0.0011
+Epoch 5/50
+26/27 [===========================>..] - ETA: 0s - loss: -47.4490 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -47.4984 - binary_accuracy: 3.1373e-04 - val_loss: -51.2960 - val_binary_accuracy: 0.0011
+Epoch 6/50
+26/27 [===========================>..] - ETA: 0s - loss: -47.8331 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -48.3580 - binary_accuracy: 3.1373e-04 - val_loss: -56.2390 - val_binary_accuracy: 0.0011
+Epoch 7/50
+27/27 [==============================] - ETA: 0s - loss: -51.5636 - binary_accuracy: 7.0588e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -51.5636 - binary_accuracy: 7.0588e-04 - val_loss: -57.2192 - val_binary_accuracy: 5.5096e-04
+Epoch 8/50
+27/27 [==============================] - ETA: 0s - loss: -52.2376 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -52.2376 - binary_accuracy: 7.8431e-04 - val_loss: -56.8913 - val_binary_accuracy: 5.5096e-04
+Epoch 9/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.6028 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -51.8903 - binary_accuracy: 7.8431e-04 - val_loss: -57.3265 - val_binary_accuracy: 5.5096e-04
+Epoch 10/50
+27/27 [==============================] - ETA: 0s - loss: -53.9581 - binary_accuracy: 6.2745e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -53.9581 - binary_accuracy: 6.2745e-04 - val_loss: -62.0396 - val_binary_accuracy: 5.5096e-04
+Epoch 11/50
+27/27 [==============================] - ETA: 0s - loss: -45.9749 - binary_accuracy: 7.0588e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -45.9749 - binary_accuracy: 7.0588e-04 - val_loss: -56.3752 - val_binary_accuracy: 5.5096e-04
+Epoch 12/50
+27/27 [==============================] - ETA: 0s - loss: -50.0177 - binary_accuracy: 7.0588e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -50.0177 - binary_accuracy: 7.0588e-04 - val_loss: -18.9269 - val_binary_accuracy: 5.5096e-04
+Epoch 13/50
+27/27 [==============================] - ETA: 0s - loss: -45.5957 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -45.5957 - binary_accuracy: 4.7059e-04 - val_loss: -57.7383 - val_binary_accuracy: 5.5096e-04
+Epoch 14/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.5462 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -51.2013 - binary_accuracy: 4.7059e-04 - val_loss: -57.0697 - val_binary_accuracy: 5.5096e-04
+Epoch 15/50
+27/27 [==============================] - ETA: 0s - loss: -51.2733 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -51.2733 - binary_accuracy: 4.7059e-04 - val_loss: -57.0118 - val_binary_accuracy: 5.5096e-04
+Epoch 16/50
+27/27 [==============================] - ETA: 0s - loss: -51.3988 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -51.3988 - binary_accuracy: 4.7059e-04 - val_loss: -57.0998 - val_binary_accuracy: 5.5096e-04
+Epoch 17/50
+27/27 [==============================] - ETA: 0s - loss: -51.4115 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 122ms/step - loss: -51.4115 - binary_accuracy: 4.7059e-04 - val_loss: -57.0942 - val_binary_accuracy: 5.5096e-04
+Epoch 18/50
+27/27 [==============================] - ETA: 0s - loss: -51.4427 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -51.4427 - binary_accuracy: 4.7059e-04 - val_loss: -57.1311 - val_binary_accuracy: 5.5096e-04
+Epoch 19/50
+27/27 [==============================] - ETA: 0s - loss: -51.4506 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 122ms/step - loss: -51.4506 - binary_accuracy: 4.7059e-04 - val_loss: -57.1410 - val_binary_accuracy: 5.5096e-04
+Epoch 20/50
+27/27 [==============================] - ETA: 0s - loss: -51.2725 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 120ms/step - loss: -51.2725 - binary_accuracy: 4.7059e-04 - val_loss: -56.6530 - val_binary_accuracy: 5.5096e-04
+Epoch 21/50
+26/27 [===========================>..] - ETA: 0s - loss: -50.6806 - binary_accuracy: 5.6090e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -51.2776 - binary_accuracy: 5.4902e-04 - val_loss: -57.1386 - val_binary_accuracy: 5.5096e-04
+Epoch 22/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.4045 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 109ms/step - loss: -51.4436 - binary_accuracy: 4.7059e-04 - val_loss: -57.0968 - val_binary_accuracy: 5.5096e-04
+Epoch 23/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.7124 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 109ms/step - loss: -51.4302 - binary_accuracy: 4.7059e-04 - val_loss: -57.1434 - val_binary_accuracy: 5.5096e-04
+Epoch 24/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.3387 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -51.4146 - binary_accuracy: 4.7059e-04 - val_loss: -57.1394 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 25/50
+27/27 [==============================] - ETA: 0s - loss: -51.4769 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 116ms/step - loss: -51.4769 - binary_accuracy: 4.7059e-04 - val_loss: -57.1196 - val_binary_accuracy: 5.5096e-04
+Epoch 26/50
+27/27 [==============================] - ETA: 0s - loss: -51.4872 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -51.4872 - binary_accuracy: 4.7059e-04 - val_loss: -57.1470 - val_binary_accuracy: 5.5096e-04
+Epoch 27/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.2796 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 114ms/step - loss: -51.4748 - binary_accuracy: 4.7059e-04 - val_loss: -57.1258 - val_binary_accuracy: 5.5096e-04
+Epoch 28/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.6772 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 115ms/step - loss: -51.4563 - binary_accuracy: 4.7059e-04 - val_loss: -57.1498 - val_binary_accuracy: 5.5096e-04
+Epoch 29/50
+27/27 [==============================] - ETA: 0s - loss: -51.4441 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -51.4441 - binary_accuracy: 4.7059e-04 - val_loss: -56.8648 - val_binary_accuracy: 5.5096e-04
+Epoch 30/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.9547 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 114ms/step - loss: -51.4638 - binary_accuracy: 4.7059e-04 - val_loss: -57.1531 - val_binary_accuracy: 5.5096e-04
+Epoch 31/50
+27/27 [==============================] - ETA: 0s - loss: -51.4202 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 109ms/step - loss: -51.4202 - binary_accuracy: 4.7059e-04 - val_loss: -57.0775 - val_binary_accuracy: 5.5096e-04
+Epoch 32/50
+27/27 [==============================] - ETA: 0s - loss: -51.4046 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 117ms/step - loss: -51.4046 - binary_accuracy: 4.7059e-04 - val_loss: -57.0957 - val_binary_accuracy: 5.5096e-04
+Epoch 33/50
+27/27 [==============================] - ETA: 0s - loss: -51.4557 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 115ms/step - loss: -51.4557 - binary_accuracy: 4.7059e-04 - val_loss: -57.1215 - val_binary_accuracy: 5.5096e-04
+Epoch 34/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.0287 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -51.4913 - binary_accuracy: 4.7059e-04 - val_loss: -57.1535 - val_binary_accuracy: 5.5096e-04
+Epoch 35/50
+27/27 [==============================] - ETA: 0s - loss: -51.4522 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -51.4522 - binary_accuracy: 4.7059e-04 - val_loss: -57.1205 - val_binary_accuracy: 5.5096e-04
+Epoch 36/50
+27/27 [==============================] - ETA: 0s - loss: -51.4820 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -51.4820 - binary_accuracy: 4.7059e-04 - val_loss: -56.6666 - val_binary_accuracy: 5.5096e-04
+Epoch 37/50
+27/27 [==============================] - ETA: 0s - loss: -51.4147 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -51.4147 - binary_accuracy: 4.7059e-04 - val_loss: -57.1532 - val_binary_accuracy: 5.5096e-04
+Epoch 38/50
+27/27 [==============================] - ETA: 0s - loss: -51.4582 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 122ms/step - loss: -51.4582 - binary_accuracy: 4.7059e-04 - val_loss: -57.1522 - val_binary_accuracy: 5.5096e-04
+Epoch 39/50
+27/27 [==============================] - ETA: 0s - loss: -51.4603 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 118ms/step - loss: -51.4603 - binary_accuracy: 4.7059e-04 - val_loss: -57.1331 - val_binary_accuracy: 5.5096e-04
+Epoch 40/50
+27/27 [==============================] - ETA: 0s - loss: -51.4264 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 122ms/step - loss: -51.4264 - binary_accuracy: 4.7059e-04 - val_loss: -57.0873 - val_binary_accuracy: 5.5096e-04
+Epoch 41/50
+27/27 [==============================] - ETA: 0s - loss: -51.4456 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 122ms/step - loss: -51.4456 - binary_accuracy: 4.7059e-04 - val_loss: -57.1457 - val_binary_accuracy: 5.5096e-04
+Epoch 42/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.1782 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 120ms/step - loss: -51.2467 - binary_accuracy: 4.7059e-04 - val_loss: -56.6530 - val_binary_accuracy: 5.5096e-04
+Epoch 43/50
+27/27 [==============================] - ETA: 0s - loss: -50.8405 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 118ms/step - loss: -50.8405 - binary_accuracy: 4.7059e-04 - val_loss: -56.6530 - val_binary_accuracy: 5.5096e-04
+Epoch 44/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.3396 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 118ms/step - loss: -50.8631 - binary_accuracy: 4.7059e-04 - val_loss: -56.6530 - val_binary_accuracy: 5.5096e-04
+Epoch 45/50
+27/27 [==============================] - ETA: 0s - loss: -50.8598 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 118ms/step - loss: -50.8598 - binary_accuracy: 4.7059e-04 - val_loss: -56.6530 - val_binary_accuracy: 5.5096e-04
+Epoch 46/50
+27/27 [==============================] - ETA: 0s - loss: -50.8556 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 121ms/step - loss: -50.8556 - binary_accuracy: 4.7059e-04 - val_loss: -56.6530 - val_binary_accuracy: 5.5096e-04
+Epoch 47/50
+26/27 [===========================>..] - ETA: 0s - loss: -50.6350 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 122ms/step - loss: -50.8567 - binary_accuracy: 4.7059e-04 - val_loss: -56.6530 - val_binary_accuracy: 5.5096e-04
+Epoch 48/50
+27/27 [==============================] - ETA: 0s - loss: -50.8588 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 116ms/step - loss: -50.8588 - binary_accuracy: 4.7059e-04 - val_loss: -56.6530 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 49/50
+27/27 [==============================] - ETA: 0s - loss: -50.8727 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 118ms/step - loss: -50.8727 - binary_accuracy: 4.7059e-04 - val_loss: -56.6530 - val_binary_accuracy: 5.5096e-04
+Epoch 50/50
+27/27 [==============================] - ETA: 0s - loss: -50.8694 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 121ms/step - loss: -50.8694 - binary_accuracy: 4.7059e-04 - val_loss: -56.6530 - val_binary_accuracy: 5.5096e-04
+
+======== Training Round 2/8 ========
+Epoch 1/50
+27/27 [==============================] - ETA: 0s - loss: -44.7078 - binary_accuracy: 8.6275e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 11s 160ms/step - loss: -44.7078 - binary_accuracy: 8.6275e-04 - val_loss: -56.8455 - val_binary_accuracy: 5.5096e-04
+Epoch 2/50
+27/27 [==============================] - ETA: 0s - loss: -54.0606 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -54.0606 - binary_accuracy: 3.1373e-04 - val_loss: -54.4528 - val_binary_accuracy: 5.5096e-04
+Epoch 3/50
+27/27 [==============================] - ETA: 0s - loss: -47.3289 - binary_accuracy: 2.3529e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 115ms/step - loss: -47.3289 - binary_accuracy: 2.3529e-04 - val_loss: -58.2875 - val_binary_accuracy: 5.5096e-04
+Epoch 4/50
+27/27 [==============================] - ETA: 0s - loss: -51.4281 - binary_accuracy: 8.6275e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 117ms/step - loss: -51.4281 - binary_accuracy: 8.6275e-04 - val_loss: -12.0594 - val_binary_accuracy: 0.0000e+00
+Epoch 5/50
+27/27 [==============================] - ETA: 0s - loss: -48.9998 - binary_accuracy: 3.9216e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 118ms/step - loss: -48.9998 - binary_accuracy: 3.9216e-04 - val_loss: -57.0833 - val_binary_accuracy: 5.5096e-04
+Epoch 6/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.1700 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 124ms/step - loss: -51.4758 - binary_accuracy: 7.8431e-04 - val_loss: -58.0502 - val_binary_accuracy: 5.5096e-04
+Epoch 7/50
+27/27 [==============================] - ETA: 0s - loss: -52.4291 - binary_accuracy: 3.9216e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 119ms/step - loss: -52.4291 - binary_accuracy: 3.9216e-04 - val_loss: -61.4844 - val_binary_accuracy: 5.5096e-04
+Epoch 8/50
+26/27 [===========================>..] - ETA: 0s - loss: -56.8465 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 118ms/step - loss: -57.0420 - binary_accuracy: 3.1373e-04 - val_loss: -65.9467 - val_binary_accuracy: 5.5096e-04
+Epoch 9/50
+27/27 [==============================] - ETA: 0s - loss: -57.0614 - binary_accuracy: 7.0588e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 119ms/step - loss: -57.0614 - binary_accuracy: 7.0588e-04 - val_loss: -63.1810 - val_binary_accuracy: 5.5096e-04
+Epoch 10/50
+26/27 [===========================>..] - ETA: 0s - loss: -57.4450 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 120ms/step - loss: -57.0960 - binary_accuracy: 7.8431e-04 - val_loss: -60.8227 - val_binary_accuracy: 5.5096e-04
+Epoch 11/50
+27/27 [==============================] - ETA: 0s - loss: -58.9782 - binary_accuracy: 3.9216e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 121ms/step - loss: -58.9782 - binary_accuracy: 3.9216e-04 - val_loss: -68.2564 - val_binary_accuracy: 5.5096e-04
+Epoch 12/50
+26/27 [===========================>..] - ETA: 0s - loss: -62.0046 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 119ms/step - loss: -61.8370 - binary_accuracy: 7.0588e-04 - val_loss: -66.5424 - val_binary_accuracy: 5.5096e-04
+Epoch 13/50
+27/27 [==============================] - ETA: 0s - loss: -62.5827 - binary_accuracy: 6.2745e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 119ms/step - loss: -62.5827 - binary_accuracy: 6.2745e-04 - val_loss: -67.1765 - val_binary_accuracy: 5.5096e-04
+Epoch 14/50
+27/27 [==============================] - ETA: 0s - loss: -60.6807 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 119ms/step - loss: -60.6807 - binary_accuracy: 4.7059e-04 - val_loss: -61.5513 - val_binary_accuracy: 5.5096e-04
+Epoch 15/50
+27/27 [==============================] - ETA: 0s - loss: -54.9542 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -54.9542 - binary_accuracy: 4.7059e-04 - val_loss: -62.6648 - val_binary_accuracy: 5.5096e-04
+Epoch 16/50
+27/27 [==============================] - ETA: 0s - loss: -56.4329 - binary_accuracy: 7.0588e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 117ms/step - loss: -56.4329 - binary_accuracy: 7.0588e-04 - val_loss: -61.5831 - val_binary_accuracy: 5.5096e-04
+Epoch 17/50
+26/27 [===========================>..] - ETA: 0s - loss: -56.9695 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -57.4590 - binary_accuracy: 3.9216e-04 - val_loss: -65.9768 - val_binary_accuracy: 5.5096e-04
+Epoch 18/50
+27/27 [==============================] - ETA: 0s - loss: -58.6108 - binary_accuracy: 3.9216e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -58.6108 - binary_accuracy: 3.9216e-04 - val_loss: -65.4231 - val_binary_accuracy: 5.5096e-04
+Epoch 19/50
+27/27 [==============================] - ETA: 0s - loss: -60.4251 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -60.4251 - binary_accuracy: 3.1373e-04 - val_loss: -63.3252 - val_binary_accuracy: 5.5096e-04
+Epoch 20/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.0533 - binary_accuracy: 8.0128e-05WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -58.3363 - binary_accuracy: 7.8431e-05 - val_loss: -66.1221 - val_binary_accuracy: 5.5096e-04
+Epoch 21/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.7631 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 109ms/step - loss: -60.7257 - binary_accuracy: 3.9216e-04 - val_loss: -68.8675 - val_binary_accuracy: 5.5096e-04
+Epoch 22/50
+26/27 [===========================>..] - ETA: 0s - loss: -62.5887 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -62.9734 - binary_accuracy: 3.1373e-04 - val_loss: -69.4142 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 23/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.9663 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -63.6646 - binary_accuracy: 3.1373e-04 - val_loss: -69.4142 - val_binary_accuracy: 5.5096e-04
+Epoch 24/50
+27/27 [==============================] - ETA: 0s - loss: -63.9586 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -63.9586 - binary_accuracy: 3.1373e-04 - val_loss: -69.5468 - val_binary_accuracy: 5.5096e-04
+Epoch 25/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.2176 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -64.0585 - binary_accuracy: 3.1373e-04 - val_loss: -68.9071 - val_binary_accuracy: 5.5096e-04
+Epoch 26/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.5322 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -63.9158 - binary_accuracy: 4.7059e-04 - val_loss: -69.5468 - val_binary_accuracy: 5.5096e-04
+Epoch 27/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.5261 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -63.3865 - binary_accuracy: 3.1373e-04 - val_loss: -65.1913 - val_binary_accuracy: 5.5096e-04
+Epoch 28/50
+27/27 [==============================] - ETA: 0s - loss: -63.9039 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 109ms/step - loss: -63.9039 - binary_accuracy: 3.1373e-04 - val_loss: -69.5520 - val_binary_accuracy: 5.5096e-04
+Epoch 29/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.9970 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -64.0269 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 30/50
+27/27 [==============================] - ETA: 0s - loss: -64.0714 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -64.0714 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 31/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.1078 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -64.0899 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 32/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.1874 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 123ms/step - loss: -64.0902 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 33/50
+27/27 [==============================] - ETA: 0s - loss: -64.0801 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -64.0801 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 34/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.6001 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -64.0871 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 35/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.8889 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -64.0900 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 36/50
+27/27 [==============================] - ETA: 0s - loss: -64.0913 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 93ms/step - loss: -64.0913 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 37/50
+27/27 [==============================] - ETA: 0s - loss: -64.0916 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 118ms/step - loss: -64.0916 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 38/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.0293 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -64.0852 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 39/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.8232 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -64.0916 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 40/50
+27/27 [==============================] - ETA: 0s - loss: -64.0884 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -64.0884 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 41/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.2952 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -64.0899 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 42/50
+27/27 [==============================] - ETA: 0s - loss: -64.0921 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 114ms/step - loss: -64.0921 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 43/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.3368 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -64.0895 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 44/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.1502 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -64.0921 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 45/50
+27/27 [==============================] - ETA: 0s - loss: -64.0923 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -64.0923 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 46/50
+27/27 [==============================] - ETA: 0s - loss: -64.0921 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 109ms/step - loss: -64.0921 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 47/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.2996 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -64.0859 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 48/50
+27/27 [==============================] - ETA: 0s - loss: -64.0891 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 116ms/step - loss: -64.0891 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 49/50
+27/27 [==============================] - ETA: 0s - loss: -64.0918 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 115ms/step - loss: -64.0918 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+Epoch 50/50
+27/27 [==============================] - ETA: 0s - loss: -64.0921 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 120ms/step - loss: -64.0921 - binary_accuracy: 3.1373e-04 - val_loss: -69.5730 - val_binary_accuracy: 5.5096e-04
+
+======== Training Round 3/8 ========
+Epoch 1/50
+26/27 [===========================>..] - ETA: 0s - loss: -32.4257 - binary_accuracy: 8.8141e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 10s 142ms/step - loss: -32.5906 - binary_accuracy: 8.6275e-04 - val_loss: -38.8724 - val_binary_accuracy: 0.0011
+Epoch 2/50
+26/27 [===========================>..] - ETA: 0s - loss: -49.3151 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -49.8325 - binary_accuracy: 4.7059e-04 - val_loss: -62.1786 - val_binary_accuracy: 0.0011
+Epoch 3/50
+27/27 [==============================] - ETA: 0s - loss: -55.6358 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -55.6358 - binary_accuracy: 3.1373e-04 - val_loss: -64.0314 - val_binary_accuracy: 0.0011
+Epoch 4/50
+27/27 [==============================] - ETA: 0s - loss: -51.8257 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 117ms/step - loss: -51.8257 - binary_accuracy: 3.1373e-04 - val_loss: -54.1980 - val_binary_accuracy: 5.5096e-04
+Epoch 5/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.7371 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 118ms/step - loss: -51.6262 - binary_accuracy: 3.9216e-04 - val_loss: -58.5997 - val_binary_accuracy: 5.5096e-04
+Epoch 6/50
+26/27 [===========================>..] - ETA: 0s - loss: -52.7826 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -52.6327 - binary_accuracy: 4.7059e-04 - val_loss: -58.7476 - val_binary_accuracy: 5.5096e-04
+Epoch 7/50
+26/27 [===========================>..] - ETA: 0s - loss: -52.5755 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -52.6579 - binary_accuracy: 4.7059e-04 - val_loss: -58.6066 - val_binary_accuracy: 5.5096e-04
+Epoch 8/50
+26/27 [===========================>..] - ETA: 0s - loss: -52.9954 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -53.4085 - binary_accuracy: 3.9216e-04 - val_loss: -64.5060 - val_binary_accuracy: 5.5096e-04
+Epoch 9/50
+27/27 [==============================] - ETA: 0s - loss: -57.2522 - binary_accuracy: 3.9216e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -57.2522 - binary_accuracy: 3.9216e-04 - val_loss: -61.6732 - val_binary_accuracy: 5.5096e-04
+Epoch 10/50
+27/27 [==============================] - ETA: 0s - loss: -58.3118 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -58.3118 - binary_accuracy: 3.1373e-04 - val_loss: -61.1560 - val_binary_accuracy: 5.5096e-04
+Epoch 11/50
+27/27 [==============================] - ETA: 0s - loss: -58.8180 - binary_accuracy: 7.0588e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 117ms/step - loss: -58.8180 - binary_accuracy: 7.0588e-04 - val_loss: -64.3377 - val_binary_accuracy: 5.5096e-04
+Epoch 12/50
+27/27 [==============================] - ETA: 0s - loss: -58.1225 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 114ms/step - loss: -58.1225 - binary_accuracy: 7.8431e-04 - val_loss: -46.3045 - val_binary_accuracy: 5.5096e-04
+Epoch 13/50
+26/27 [===========================>..] - ETA: 0s - loss: -56.8624 - binary_accuracy: 6.4103e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 118ms/step - loss: -56.9644 - binary_accuracy: 6.2745e-04 - val_loss: -64.2731 - val_binary_accuracy: 5.5096e-04
+Epoch 14/50
+27/27 [==============================] - ETA: 0s - loss: -58.5557 - binary_accuracy: 6.2745e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 114ms/step - loss: -58.5557 - binary_accuracy: 6.2745e-04 - val_loss: -64.2731 - val_binary_accuracy: 5.5096e-04
+Epoch 15/50
+26/27 [===========================>..] - ETA: 0s - loss: -55.9047 - binary_accuracy: 6.4103e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -55.5632 - binary_accuracy: 6.2745e-04 - val_loss: -61.9868 - val_binary_accuracy: 0.0011
+Epoch 16/50
+26/27 [===========================>..] - ETA: 0s - loss: -57.5381 - binary_accuracy: 5.6090e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -57.3565 - binary_accuracy: 5.4902e-04 - val_loss: -63.9500 - val_binary_accuracy: 0.0011
+Epoch 17/50
+26/27 [===========================>..] - ETA: 0s - loss: -56.3913 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 114ms/step - loss: -57.1948 - binary_accuracy: 3.1373e-04 - val_loss: -63.6245 - val_binary_accuracy: 5.5096e-04
+Epoch 18/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.3237 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -58.0754 - binary_accuracy: 3.1373e-04 - val_loss: -64.0308 - val_binary_accuracy: 5.5096e-04
+Epoch 19/50
+27/27 [==============================] - ETA: 0s - loss: -58.6649 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -58.6649 - binary_accuracy: 3.1373e-04 - val_loss: -65.0866 - val_binary_accuracy: 5.5096e-04
+Epoch 20/50
+26/27 [===========================>..] - ETA: 0s - loss: -57.3352 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -57.6701 - binary_accuracy: 3.9216e-04 - val_loss: -64.1370 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 21/50
+27/27 [==============================] - ETA: 0s - loss: -58.4526 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 97ms/step - loss: -58.4526 - binary_accuracy: 3.1373e-04 - val_loss: -65.1120 - val_binary_accuracy: 5.5096e-04
+Epoch 22/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.6696 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -58.8132 - binary_accuracy: 3.1373e-04 - val_loss: -65.1751 - val_binary_accuracy: 5.5096e-04
+Epoch 23/50
+26/27 [===========================>..] - ETA: 0s - loss: -59.6807 - binary_accuracy: 1.6026e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -58.9280 - binary_accuracy: 3.1373e-04 - val_loss: -64.9906 - val_binary_accuracy: 5.5096e-04
+Epoch 24/50
+26/27 [===========================>..] - ETA: 0s - loss: -57.3153 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -57.4570 - binary_accuracy: 2.3529e-04 - val_loss: -62.8058 - val_binary_accuracy: 0.0000e+00
+Epoch 25/50
+27/27 [==============================] - ETA: 0s - loss: -57.5887 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -57.5887 - binary_accuracy: 3.1373e-04 - val_loss: -63.1247 - val_binary_accuracy: 5.5096e-04
+Epoch 26/50
+26/27 [===========================>..] - ETA: 0s - loss: -56.7872 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -56.4267 - binary_accuracy: 3.1373e-04 - val_loss: -59.4251 - val_binary_accuracy: 5.5096e-04
+Epoch 27/50
+26/27 [===========================>..] - ETA: 0s - loss: -56.3436 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 109ms/step - loss: -56.5941 - binary_accuracy: 4.7059e-04 - val_loss: -63.4685 - val_binary_accuracy: 5.5096e-04
+Epoch 28/50
+27/27 [==============================] - ETA: 0s - loss: -58.0584 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -58.0584 - binary_accuracy: 4.7059e-04 - val_loss: -64.7448 - val_binary_accuracy: 5.5096e-04
+Epoch 29/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.5229 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -58.2169 - binary_accuracy: 4.7059e-04 - val_loss: -63.5882 - val_binary_accuracy: 5.5096e-04
+Epoch 30/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.0414 - binary_accuracy: 5.6090e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -57.9358 - binary_accuracy: 5.4902e-04 - val_loss: -63.6972 - val_binary_accuracy: 5.5096e-04
+Epoch 31/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.0173 - binary_accuracy: 5.6090e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -57.6615 - binary_accuracy: 5.4902e-04 - val_loss: -64.3269 - val_binary_accuracy: 0.0000e+00
+Epoch 32/50
+27/27 [==============================] - ETA: 0s - loss: -58.8101 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -58.8101 - binary_accuracy: 4.7059e-04 - val_loss: -65.2447 - val_binary_accuracy: 5.5096e-04
+Epoch 33/50
+27/27 [==============================] - ETA: 0s - loss: -58.1100 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -58.1100 - binary_accuracy: 4.7059e-04 - val_loss: -63.4167 - val_binary_accuracy: 5.5096e-04
+Epoch 34/50
+27/27 [==============================] - ETA: 0s - loss: -56.6182 - binary_accuracy: 5.4902e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -56.6182 - binary_accuracy: 5.4902e-04 - val_loss: -59.5544 - val_binary_accuracy: 0.0000e+00
+Epoch 35/50
+27/27 [==============================] - ETA: 0s - loss: -54.9807 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -54.9807 - binary_accuracy: 3.1373e-04 - val_loss: -62.7237 - val_binary_accuracy: 5.5096e-04
+Epoch 36/50
+26/27 [===========================>..] - ETA: 0s - loss: -57.9159 - binary_accuracy: 6.4103e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -58.0974 - binary_accuracy: 6.2745e-04 - val_loss: -64.2375 - val_binary_accuracy: 5.5096e-04
+Epoch 37/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.3623 - binary_accuracy: 6.4103e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -58.8703 - binary_accuracy: 6.2745e-04 - val_loss: -64.1236 - val_binary_accuracy: 5.5096e-04
+Epoch 38/50
+26/27 [===========================>..] - ETA: 0s - loss: -55.3545 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -55.7193 - binary_accuracy: 3.1373e-04 - val_loss: -59.8801 - val_binary_accuracy: 5.5096e-04
+Epoch 39/50
+27/27 [==============================] - ETA: 0s - loss: -55.4587 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 114ms/step - loss: -55.4587 - binary_accuracy: 3.1373e-04 - val_loss: -58.9782 - val_binary_accuracy: 5.5096e-04
+Epoch 40/50
+27/27 [==============================] - ETA: 0s - loss: -55.3979 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -55.3979 - binary_accuracy: 4.7059e-04 - val_loss: -52.9823 - val_binary_accuracy: 5.5096e-04
+Epoch 41/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.3488 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -54.5276 - binary_accuracy: 4.7059e-04 - val_loss: -61.9316 - val_binary_accuracy: 0.0011
+Epoch 42/50
+26/27 [===========================>..] - ETA: 0s - loss: -55.4333 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -55.1930 - binary_accuracy: 7.0588e-04 - val_loss: -60.3778 - val_binary_accuracy: 5.5096e-04
+Epoch 43/50
+27/27 [==============================] - ETA: 0s - loss: -56.8021 - binary_accuracy: 7.0588e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 97ms/step - loss: -56.8021 - binary_accuracy: 7.0588e-04 - val_loss: -63.3445 - val_binary_accuracy: 5.5096e-04
+Epoch 44/50
+27/27 [==============================] - ETA: 0s - loss: -58.9670 - binary_accuracy: 6.2745e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 95ms/step - loss: -58.9670 - binary_accuracy: 6.2745e-04 - val_loss: -66.1054 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 45/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.8943 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -62.1173 - binary_accuracy: 4.7059e-04 - val_loss: -70.0874 - val_binary_accuracy: 5.5096e-04
+Epoch 46/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.8278 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 99ms/step - loss: -63.6426 - binary_accuracy: 2.3529e-04 - val_loss: -70.5287 - val_binary_accuracy: 5.5096e-04
+Epoch 47/50
+27/27 [==============================] - ETA: 0s - loss: -64.3018 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -64.3018 - binary_accuracy: 3.1373e-04 - val_loss: -70.5170 - val_binary_accuracy: 5.5096e-04
+Epoch 48/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.5472 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -64.5721 - binary_accuracy: 3.1373e-04 - val_loss: -70.2013 - val_binary_accuracy: 5.5096e-04
+Epoch 49/50
+27/27 [==============================] - ETA: 0s - loss: -63.8807 - binary_accuracy: 3.9216e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -63.8807 - binary_accuracy: 3.9216e-04 - val_loss: -70.5142 - val_binary_accuracy: 5.5096e-04
+Epoch 50/50
+27/27 [==============================] - ETA: 0s - loss: -64.9720 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 99ms/step - loss: -64.9720 - binary_accuracy: 3.1373e-04 - val_loss: -70.5190 - val_binary_accuracy: 5.5096e-04
+
+======== Training Round 4/8 ========
+Epoch 1/50
+27/27 [==============================] - ETA: 0s - loss: -41.7171 - binary_accuracy: 0.0000e+00WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 10s 143ms/step - loss: -41.7171 - binary_accuracy: 0.0000e+00 - val_loss: -55.4382 - val_binary_accuracy: 5.5096e-04
+Epoch 2/50
+26/27 [===========================>..] - ETA: 0s - loss: -49.4117 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -49.4746 - binary_accuracy: 3.1373e-04 - val_loss: -57.1538 - val_binary_accuracy: 5.5096e-04
+Epoch 3/50
+26/27 [===========================>..] - ETA: 0s - loss: -53.5780 - binary_accuracy: 5.6090e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -53.8026 - binary_accuracy: 5.4902e-04 - val_loss: -61.0439 - val_binary_accuracy: 5.5096e-04
+Epoch 4/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.1497 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -58.0953 - binary_accuracy: 4.7059e-04 - val_loss: -66.6737 - val_binary_accuracy: 5.5096e-04
+Epoch 5/50
+26/27 [===========================>..] - ETA: 0s - loss: -57.8128 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -57.8747 - binary_accuracy: 4.7059e-04 - val_loss: -65.7841 - val_binary_accuracy: 5.5096e-04
+Epoch 6/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.6899 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -60.4235 - binary_accuracy: 3.1373e-04 - val_loss: -65.8284 - val_binary_accuracy: 5.5096e-04
+Epoch 7/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.2737 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 116ms/step - loss: -60.7155 - binary_accuracy: 3.1373e-04 - val_loss: -65.9434 - val_binary_accuracy: 5.5096e-04
+Epoch 8/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.4293 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -60.8200 - binary_accuracy: 3.1373e-04 - val_loss: -66.0688 - val_binary_accuracy: 5.5096e-04
+Epoch 9/50
+27/27 [==============================] - ETA: 0s - loss: -61.0298 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 117ms/step - loss: -61.0298 - binary_accuracy: 3.1373e-04 - val_loss: -66.1305 - val_binary_accuracy: 5.5096e-04
+Epoch 10/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.3002 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 114ms/step - loss: -60.9208 - binary_accuracy: 3.1373e-04 - val_loss: -66.2682 - val_binary_accuracy: 5.5096e-04
+Epoch 11/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.9916 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -61.1370 - binary_accuracy: 3.1373e-04 - val_loss: -66.1755 - val_binary_accuracy: 5.5096e-04
+Epoch 12/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.5035 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -60.7934 - binary_accuracy: 3.1373e-04 - val_loss: -65.8723 - val_binary_accuracy: 5.5096e-04
+Epoch 13/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.7671 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -61.0413 - binary_accuracy: 3.1373e-04 - val_loss: -66.3331 - val_binary_accuracy: 5.5096e-04
+Epoch 14/50
+27/27 [==============================] - ETA: 0s - loss: -61.2053 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 122ms/step - loss: -61.2053 - binary_accuracy: 3.1373e-04 - val_loss: -66.3598 - val_binary_accuracy: 5.5096e-04
+Epoch 15/50
+27/27 [==============================] - ETA: 0s - loss: -61.2580 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 114ms/step - loss: -61.2580 - binary_accuracy: 3.1373e-04 - val_loss: -66.0568 - val_binary_accuracy: 5.5096e-04
+Epoch 16/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.3315 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -61.2076 - binary_accuracy: 3.1373e-04 - val_loss: -66.3908 - val_binary_accuracy: 5.5096e-04
+Epoch 17/50
+27/27 [==============================] - ETA: 0s - loss: -61.3036 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 109ms/step - loss: -61.3036 - binary_accuracy: 3.1373e-04 - val_loss: -66.1262 - val_binary_accuracy: 5.5096e-04
+Epoch 18/50
+27/27 [==============================] - ETA: 0s - loss: -61.2113 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 114ms/step - loss: -61.2113 - binary_accuracy: 3.1373e-04 - val_loss: -66.3909 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 19/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.8410 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -61.2715 - binary_accuracy: 3.1373e-04 - val_loss: -66.0502 - val_binary_accuracy: 5.5096e-04
+Epoch 20/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.0863 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -61.2565 - binary_accuracy: 3.1373e-04 - val_loss: -66.3914 - val_binary_accuracy: 5.5096e-04
+Epoch 21/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.9593 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 97ms/step - loss: -61.2430 - binary_accuracy: 3.1373e-04 - val_loss: -65.9779 - val_binary_accuracy: 5.5096e-04
+Epoch 22/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.1207 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -61.2956 - binary_accuracy: 3.1373e-04 - val_loss: -66.4240 - val_binary_accuracy: 5.5096e-04
+Epoch 23/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.1384 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -61.2156 - binary_accuracy: 3.1373e-04 - val_loss: -66.4056 - val_binary_accuracy: 5.5096e-04
+Epoch 24/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.9638 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -61.3099 - binary_accuracy: 3.1373e-04 - val_loss: -66.4226 - val_binary_accuracy: 5.5096e-04
+Epoch 25/50
+27/27 [==============================] - ETA: 0s - loss: -61.3123 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 109ms/step - loss: -61.3123 - binary_accuracy: 3.1373e-04 - val_loss: -66.4310 - val_binary_accuracy: 5.5096e-04
+Epoch 26/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.5080 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -61.2661 - binary_accuracy: 3.1373e-04 - val_loss: -66.4372 - val_binary_accuracy: 5.5096e-04
+Epoch 27/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.8512 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -61.3334 - binary_accuracy: 3.1373e-04 - val_loss: -66.4417 - val_binary_accuracy: 5.5096e-04
+Epoch 28/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.2842 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -61.3178 - binary_accuracy: 3.1373e-04 - val_loss: -66.4445 - val_binary_accuracy: 5.5096e-04
+Epoch 29/50
+27/27 [==============================] - ETA: 0s - loss: -61.3363 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -61.3363 - binary_accuracy: 3.1373e-04 - val_loss: -66.4561 - val_binary_accuracy: 5.5096e-04
+Epoch 30/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.1198 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -61.3342 - binary_accuracy: 3.1373e-04 - val_loss: -66.4616 - val_binary_accuracy: 5.5096e-04
+Epoch 31/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.6239 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -61.1005 - binary_accuracy: 3.1373e-04 - val_loss: -65.9281 - val_binary_accuracy: 5.5096e-04
+Epoch 32/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.0679 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -60.7840 - binary_accuracy: 3.1373e-04 - val_loss: -65.9352 - val_binary_accuracy: 5.5096e-04
+Epoch 33/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.8330 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -60.7944 - binary_accuracy: 3.1373e-04 - val_loss: -65.9426 - val_binary_accuracy: 5.5096e-04
+Epoch 34/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.2308 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -60.8283 - binary_accuracy: 3.1373e-04 - val_loss: -66.4111 - val_binary_accuracy: 5.5096e-04
+Epoch 35/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.7043 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -61.3879 - binary_accuracy: 3.1373e-04 - val_loss: -66.5334 - val_binary_accuracy: 5.5096e-04
+Epoch 36/50
+27/27 [==============================] - ETA: 0s - loss: -61.3440 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 97ms/step - loss: -61.3440 - binary_accuracy: 3.1373e-04 - val_loss: -66.5173 - val_binary_accuracy: 5.5096e-04
+Epoch 37/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.0641 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 95ms/step - loss: -61.3552 - binary_accuracy: 3.1373e-04 - val_loss: -66.3757 - val_binary_accuracy: 5.5096e-04
+Epoch 38/50
+27/27 [==============================] - ETA: 0s - loss: -61.4114 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -61.4114 - binary_accuracy: 3.1373e-04 - val_loss: -66.1604 - val_binary_accuracy: 5.5096e-04
+Epoch 39/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.4220 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 99ms/step - loss: -61.2233 - binary_accuracy: 3.1373e-04 - val_loss: -66.4375 - val_binary_accuracy: 5.5096e-04
+Epoch 40/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.1136 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -61.2268 - binary_accuracy: 3.1373e-04 - val_loss: -66.4366 - val_binary_accuracy: 5.5096e-04
+Epoch 41/50
+27/27 [==============================] - ETA: 0s - loss: -61.3488 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -61.3488 - binary_accuracy: 3.1373e-04 - val_loss: -66.5147 - val_binary_accuracy: 5.5096e-04
+Epoch 42/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.4829 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -61.6345 - binary_accuracy: 3.1373e-04 - val_loss: -66.2291 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 43/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.4263 - binary_accuracy: 5.6090e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -61.3090 - binary_accuracy: 5.4902e-04 - val_loss: -65.1954 - val_binary_accuracy: 5.5096e-04
+Epoch 44/50
+26/27 [===========================>..] - ETA: 0s - loss: -59.5369 - binary_accuracy: 1.6026e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -59.8966 - binary_accuracy: 1.5686e-04 - val_loss: -65.8838 - val_binary_accuracy: 5.5096e-04
+Epoch 45/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.2513 - binary_accuracy: 1.6026e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -60.5572 - binary_accuracy: 1.5686e-04 - val_loss: -65.6515 - val_binary_accuracy: 5.5096e-04
+Epoch 46/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.0965 - binary_accuracy: 1.6026e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -61.0610 - binary_accuracy: 1.5686e-04 - val_loss: -65.8326 - val_binary_accuracy: 5.5096e-04
+Epoch 47/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.1543 - binary_accuracy: 1.6026e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -60.3898 - binary_accuracy: 1.5686e-04 - val_loss: -66.1643 - val_binary_accuracy: 5.5096e-04
+Epoch 48/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.7825 - binary_accuracy: 1.6026e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -60.9287 - binary_accuracy: 1.5686e-04 - val_loss: -66.7898 - val_binary_accuracy: 5.5096e-04
+Epoch 49/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.0020 - binary_accuracy: 1.6026e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -60.8966 - binary_accuracy: 1.5686e-04 - val_loss: -66.0760 - val_binary_accuracy: 5.5096e-04
+Epoch 50/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.9630 - binary_accuracy: 8.0128e-05WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -61.6959 - binary_accuracy: 7.8431e-05 - val_loss: -65.9453 - val_binary_accuracy: 5.5096e-04
+
+======== Training Round 5/8 ========
+Epoch 1/50
+27/27 [==============================] - ETA: 0s - loss: -47.0945 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 11s 146ms/step - loss: -47.0945 - binary_accuracy: 3.1373e-04 - val_loss: -55.3036 - val_binary_accuracy: 5.5096e-04
+Epoch 2/50
+27/27 [==============================] - ETA: 0s - loss: -49.3259 - binary_accuracy: 5.4902e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -49.3259 - binary_accuracy: 5.4902e-04 - val_loss: -56.6530 - val_binary_accuracy: 5.5096e-04
+Epoch 3/50
+26/27 [===========================>..] - ETA: 0s - loss: -50.2022 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -49.9357 - binary_accuracy: 3.9216e-04 - val_loss: -55.5702 - val_binary_accuracy: 5.5096e-04
+Epoch 4/50
+26/27 [===========================>..] - ETA: 0s - loss: -46.9860 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -47.4405 - binary_accuracy: 4.7059e-04 - val_loss: -57.9549 - val_binary_accuracy: 5.5096e-04
+Epoch 5/50
+27/27 [==============================] - ETA: 0s - loss: -51.8234 - binary_accuracy: 2.3529e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -51.8234 - binary_accuracy: 2.3529e-04 - val_loss: -61.4692 - val_binary_accuracy: 5.5096e-04
+Epoch 6/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.0701 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -53.9823 - binary_accuracy: 2.3529e-04 - val_loss: -62.7629 - val_binary_accuracy: 5.5096e-04
+Epoch 7/50
+27/27 [==============================] - ETA: 0s - loss: -56.4248 - binary_accuracy: 2.3529e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -56.4248 - binary_accuracy: 2.3529e-04 - val_loss: -62.7628 - val_binary_accuracy: 5.5096e-04
+Epoch 8/50
+26/27 [===========================>..] - ETA: 0s - loss: -57.2268 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -56.8033 - binary_accuracy: 2.3529e-04 - val_loss: -62.7629 - val_binary_accuracy: 5.5096e-04
+Epoch 9/50
+27/27 [==============================] - ETA: 0s - loss: -53.4501 - binary_accuracy: 2.3529e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -53.4501 - binary_accuracy: 2.3529e-04 - val_loss: -62.0793 - val_binary_accuracy: 5.5096e-04
+Epoch 10/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.2996 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -54.4477 - binary_accuracy: 3.1373e-04 - val_loss: -62.5219 - val_binary_accuracy: 5.5096e-04
+Epoch 11/50
+27/27 [==============================] - ETA: 0s - loss: -55.5789 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -55.5789 - binary_accuracy: 3.1373e-04 - val_loss: -46.3695 - val_binary_accuracy: 5.5096e-04
+Epoch 12/50
+26/27 [===========================>..] - ETA: 0s - loss: -50.3718 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -50.3947 - binary_accuracy: 3.1373e-04 - val_loss: -61.5552 - val_binary_accuracy: 5.5096e-04
+Epoch 13/50
+26/27 [===========================>..] - ETA: 0s - loss: -55.2984 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 2s 91ms/step - loss: -54.9084 - binary_accuracy: 3.1373e-04 - val_loss: -61.6624 - val_binary_accuracy: 5.5096e-04
+Epoch 14/50
+27/27 [==============================] - ETA: 0s - loss: -53.7535 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -53.7535 - binary_accuracy: 4.7059e-04 - val_loss: -59.0543 - val_binary_accuracy: 5.5096e-04
+Epoch 15/50
+26/27 [===========================>..] - ETA: 0s - loss: -57.5485 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 99ms/step - loss: -58.1257 - binary_accuracy: 3.1373e-04 - val_loss: -69.0164 - val_binary_accuracy: 5.5096e-04
+Epoch 16/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.9386 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 97ms/step - loss: -59.2254 - binary_accuracy: 3.1373e-04 - val_loss: -63.3320 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 17/50
+27/27 [==============================] - ETA: 0s - loss: -57.5218 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -57.5218 - binary_accuracy: 3.1373e-04 - val_loss: -65.6357 - val_binary_accuracy: 5.5096e-04
+Epoch 18/50
+26/27 [===========================>..] - ETA: 0s - loss: -57.9386 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -58.0854 - binary_accuracy: 3.1373e-04 - val_loss: -66.6400 - val_binary_accuracy: 5.5096e-04
+Epoch 19/50
+26/27 [===========================>..] - ETA: 0s - loss: -59.5068 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -59.4325 - binary_accuracy: 3.1373e-04 - val_loss: -67.0314 - val_binary_accuracy: 5.5096e-04
+Epoch 20/50
+27/27 [==============================] - ETA: 0s - loss: -60.7351 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 97ms/step - loss: -60.7351 - binary_accuracy: 3.1373e-04 - val_loss: -68.0649 - val_binary_accuracy: 5.5096e-04
+Epoch 21/50
+26/27 [===========================>..] - ETA: 0s - loss: -62.1861 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 97ms/step - loss: -62.2854 - binary_accuracy: 3.1373e-04 - val_loss: -69.0313 - val_binary_accuracy: 5.5096e-04
+Epoch 22/50
+26/27 [===========================>..] - ETA: 0s - loss: -62.4614 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -62.3860 - binary_accuracy: 3.1373e-04 - val_loss: -68.4388 - val_binary_accuracy: 5.5096e-04
+Epoch 23/50
+27/27 [==============================] - ETA: 0s - loss: -60.6035 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 95ms/step - loss: -60.6035 - binary_accuracy: 3.1373e-04 - val_loss: -68.6503 - val_binary_accuracy: 5.5096e-04
+Epoch 24/50
+26/27 [===========================>..] - ETA: 0s - loss: -59.3147 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 97ms/step - loss: -58.5631 - binary_accuracy: 3.1373e-04 - val_loss: -67.5399 - val_binary_accuracy: 5.5096e-04
+Epoch 25/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.1001 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -63.2387 - binary_accuracy: 3.1373e-04 - val_loss: -69.1477 - val_binary_accuracy: 5.5096e-04
+Epoch 26/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.9309 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -63.7828 - binary_accuracy: 3.1373e-04 - val_loss: -69.1410 - val_binary_accuracy: 5.5096e-04
+Epoch 27/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.2168 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -63.7869 - binary_accuracy: 3.1373e-04 - val_loss: -69.1381 - val_binary_accuracy: 5.5096e-04
+Epoch 28/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.1813 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -63.8200 - binary_accuracy: 3.1373e-04 - val_loss: -69.1424 - val_binary_accuracy: 5.5096e-04
+Epoch 29/50
+27/27 [==============================] - ETA: 0s - loss: -63.8175 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 95ms/step - loss: -63.8175 - binary_accuracy: 3.1373e-04 - val_loss: -69.3657 - val_binary_accuracy: 5.5096e-04
+Epoch 30/50
+27/27 [==============================] - ETA: 0s - loss: -63.9034 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -63.9034 - binary_accuracy: 3.1373e-04 - val_loss: -69.4083 - val_binary_accuracy: 5.5096e-04
+Epoch 31/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.6682 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 2s 91ms/step - loss: -63.9337 - binary_accuracy: 3.1373e-04 - val_loss: -69.4278 - val_binary_accuracy: 5.5096e-04
+Epoch 32/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.8271 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 96ms/step - loss: -63.8765 - binary_accuracy: 3.1373e-04 - val_loss: -69.4293 - val_binary_accuracy: 5.5096e-04
+Epoch 33/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.7516 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -63.9539 - binary_accuracy: 3.1373e-04 - val_loss: -69.4545 - val_binary_accuracy: 5.5096e-04
+Epoch 34/50
+27/27 [==============================] - ETA: 0s - loss: -63.9194 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -63.9194 - binary_accuracy: 3.1373e-04 - val_loss: -69.4641 - val_binary_accuracy: 5.5096e-04
+Epoch 35/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.7505 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 99ms/step - loss: -63.9586 - binary_accuracy: 3.1373e-04 - val_loss: -69.4633 - val_binary_accuracy: 5.5096e-04
+Epoch 36/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.9383 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -63.8891 - binary_accuracy: 3.1373e-04 - val_loss: -69.4701 - val_binary_accuracy: 5.5096e-04
+Epoch 37/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.4353 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 95ms/step - loss: -64.0327 - binary_accuracy: 3.1373e-04 - val_loss: -69.4731 - val_binary_accuracy: 5.5096e-04
+Epoch 38/50
+27/27 [==============================] - ETA: 0s - loss: -64.0556 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 99ms/step - loss: -64.0556 - binary_accuracy: 3.1373e-04 - val_loss: -69.4776 - val_binary_accuracy: 5.5096e-04
+Epoch 39/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.9399 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -64.0450 - binary_accuracy: 3.1373e-04 - val_loss: -69.4882 - val_binary_accuracy: 5.5096e-04
+Epoch 40/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.1260 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -64.0606 - binary_accuracy: 3.1373e-04 - val_loss: -69.4950 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 41/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.8846 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -64.0968 - binary_accuracy: 3.1373e-04 - val_loss: -69.5044 - val_binary_accuracy: 5.5096e-04
+Epoch 42/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.0762 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -64.1065 - binary_accuracy: 3.1373e-04 - val_loss: -69.5174 - val_binary_accuracy: 5.5096e-04
+Epoch 43/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.0061 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -64.0959 - binary_accuracy: 3.1373e-04 - val_loss: -69.5304 - val_binary_accuracy: 5.5096e-04
+Epoch 44/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.2274 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -64.0939 - binary_accuracy: 3.1373e-04 - val_loss: -69.5076 - val_binary_accuracy: 5.5096e-04
+Epoch 45/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.6571 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 92ms/step - loss: -64.0977 - binary_accuracy: 3.1373e-04 - val_loss: -69.5057 - val_binary_accuracy: 5.5096e-04
+Epoch 46/50
+27/27 [==============================] - ETA: 0s - loss: -64.1054 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 97ms/step - loss: -64.1054 - binary_accuracy: 3.1373e-04 - val_loss: -69.5139 - val_binary_accuracy: 5.5096e-04
+Epoch 47/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.5385 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -64.1064 - binary_accuracy: 3.1373e-04 - val_loss: -69.5199 - val_binary_accuracy: 5.5096e-04
+Epoch 48/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.3155 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -64.1235 - binary_accuracy: 3.1373e-04 - val_loss: -69.5271 - val_binary_accuracy: 5.5096e-04
+Epoch 49/50
+27/27 [==============================] - ETA: 0s - loss: -64.1091 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -64.1091 - binary_accuracy: 3.1373e-04 - val_loss: -69.5303 - val_binary_accuracy: 5.5096e-04
+Epoch 50/50
+27/27 [==============================] - ETA: 0s - loss: -64.1214 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -64.1214 - binary_accuracy: 3.1373e-04 - val_loss: -69.5338 - val_binary_accuracy: 5.5096e-04
+
+======== Training Round 6/8 ========
+Epoch 1/50
+27/27 [==============================] - ETA: 0s - loss: -38.8645 - binary_accuracy: 3.9216e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 10s 137ms/step - loss: -38.8645 - binary_accuracy: 3.9216e-04 - val_loss: -59.5563 - val_binary_accuracy: 5.5096e-04
+Epoch 2/50
+27/27 [==============================] - ETA: 0s - loss: -51.0396 - binary_accuracy: 8.6275e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -51.0396 - binary_accuracy: 8.6275e-04 - val_loss: -59.3760 - val_binary_accuracy: 5.5096e-04
+Epoch 3/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.2985 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -51.1698 - binary_accuracy: 3.9216e-04 - val_loss: -54.5052 - val_binary_accuracy: 5.5096e-04
+Epoch 4/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.6276 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -50.9268 - binary_accuracy: 3.1373e-04 - val_loss: -62.1389 - val_binary_accuracy: 5.5096e-04
+Epoch 5/50
+26/27 [===========================>..] - ETA: 0s - loss: -53.4415 - binary_accuracy: 5.6090e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -53.6751 - binary_accuracy: 5.4902e-04 - val_loss: -57.7824 - val_binary_accuracy: 5.5096e-04
+Epoch 6/50
+26/27 [===========================>..] - ETA: 0s - loss: -53.7286 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -54.2108 - binary_accuracy: 3.9216e-04 - val_loss: -62.6244 - val_binary_accuracy: 5.5096e-04
+Epoch 7/50
+27/27 [==============================] - ETA: 0s - loss: -48.8040 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -48.8040 - binary_accuracy: 3.1373e-04 - val_loss: -59.8191 - val_binary_accuracy: 5.5096e-04
+Epoch 8/50
+26/27 [===========================>..] - ETA: 0s - loss: -50.9586 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -51.0117 - binary_accuracy: 3.9216e-04 - val_loss: -53.2566 - val_binary_accuracy: 5.5096e-04
+Epoch 9/50
+26/27 [===========================>..] - ETA: 0s - loss: -48.5904 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 97ms/step - loss: -48.7821 - binary_accuracy: 3.9216e-04 - val_loss: -55.3909 - val_binary_accuracy: 5.5096e-04
+Epoch 10/50
+26/27 [===========================>..] - ETA: 0s - loss: -50.1798 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -50.1260 - binary_accuracy: 2.3529e-04 - val_loss: -54.3832 - val_binary_accuracy: 5.5096e-04
+Epoch 11/50
+27/27 [==============================] - ETA: 0s - loss: -49.7305 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -49.7305 - binary_accuracy: 3.1373e-04 - val_loss: -55.0378 - val_binary_accuracy: 5.5096e-04
+Epoch 12/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.8330 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -51.9305 - binary_accuracy: 3.9216e-04 - val_loss: -62.0771 - val_binary_accuracy: 5.5096e-04
+Epoch 13/50
+27/27 [==============================] - ETA: 0s - loss: -57.4266 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -57.4266 - binary_accuracy: 7.8431e-04 - val_loss: -62.6237 - val_binary_accuracy: 5.5096e-04
+Epoch 14/50
+26/27 [===========================>..] - ETA: 0s - loss: -57.7806 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -57.5984 - binary_accuracy: 7.8431e-04 - val_loss: -63.5796 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 15/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.1284 - binary_accuracy: 6.4103e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -58.3909 - binary_accuracy: 6.2745e-04 - val_loss: -63.9797 - val_binary_accuracy: 5.5096e-04
+Epoch 16/50
+27/27 [==============================] - ETA: 0s - loss: -58.8300 - binary_accuracy: 6.2745e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -58.8300 - binary_accuracy: 6.2745e-04 - val_loss: -64.7594 - val_binary_accuracy: 5.5096e-04
+Epoch 17/50
+27/27 [==============================] - ETA: 0s - loss: -58.1881 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -58.1881 - binary_accuracy: 7.8431e-04 - val_loss: -61.7852 - val_binary_accuracy: 5.5096e-04
+Epoch 18/50
+26/27 [===========================>..] - ETA: 0s - loss: -57.8528 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -57.7924 - binary_accuracy: 7.0588e-04 - val_loss: -63.3668 - val_binary_accuracy: 5.5096e-04
+Epoch 19/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.0399 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -58.2564 - binary_accuracy: 7.0588e-04 - val_loss: -63.3358 - val_binary_accuracy: 5.5096e-04
+Epoch 20/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.6830 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -58.3215 - binary_accuracy: 7.0588e-04 - val_loss: -63.6333 - val_binary_accuracy: 5.5096e-04
+Epoch 21/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.0059 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 97ms/step - loss: -58.2474 - binary_accuracy: 7.0588e-04 - val_loss: -63.4007 - val_binary_accuracy: 5.5096e-04
+Epoch 22/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.1392 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -58.3661 - binary_accuracy: 7.8431e-04 - val_loss: -63.7179 - val_binary_accuracy: 5.5096e-04
+Epoch 23/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.6134 - binary_accuracy: 6.4103e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -58.3539 - binary_accuracy: 6.2745e-04 - val_loss: -63.9372 - val_binary_accuracy: 5.5096e-04
+Epoch 24/50
+27/27 [==============================] - ETA: 0s - loss: -58.3339 - binary_accuracy: 7.0588e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -58.3339 - binary_accuracy: 7.0588e-04 - val_loss: -63.9372 - val_binary_accuracy: 5.5096e-04
+Epoch 25/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.4246 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -58.3352 - binary_accuracy: 7.0588e-04 - val_loss: -63.9372 - val_binary_accuracy: 5.5096e-04
+Epoch 26/50
+27/27 [==============================] - ETA: 0s - loss: -58.3386 - binary_accuracy: 7.0588e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -58.3386 - binary_accuracy: 7.0588e-04 - val_loss: -63.9372 - val_binary_accuracy: 5.5096e-04
+Epoch 27/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.1799 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 99ms/step - loss: -58.1064 - binary_accuracy: 7.0588e-04 - val_loss: -64.2629 - val_binary_accuracy: 5.5096e-04
+Epoch 28/50
+26/27 [===========================>..] - ETA: 0s - loss: -55.6579 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -55.7437 - binary_accuracy: 8.6275e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 29/50
+26/27 [===========================>..] - ETA: 0s - loss: -55.2341 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -55.0570 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 30/50
+27/27 [==============================] - ETA: 0s - loss: -55.0615 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -55.0615 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 31/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.2906 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -55.0551 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 32/50
+27/27 [==============================] - ETA: 0s - loss: -55.0617 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 99ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 33/50
+27/27 [==============================] - ETA: 0s - loss: -55.0617 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 34/50
+26/27 [===========================>..] - ETA: 0s - loss: -55.2922 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 35/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.6870 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 36/50
+26/27 [===========================>..] - ETA: 0s - loss: -55.1052 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 37/50
+26/27 [===========================>..] - ETA: 0s - loss: -55.1617 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 38/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.5839 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 97ms/step - loss: -55.0566 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 39/50
+27/27 [==============================] - ETA: 0s - loss: -55.0617 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 40/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.8807 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 96ms/step - loss: -55.0615 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 41/50
+27/27 [==============================] - ETA: 0s - loss: -55.0616 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -55.0616 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 42/50
+27/27 [==============================] - ETA: 0s - loss: -55.0617 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 43/50
+27/27 [==============================] - ETA: 0s - loss: -55.0617 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 44/50
+26/27 [===========================>..] - ETA: 0s - loss: -55.3250 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 45/50
+27/27 [==============================] - ETA: 0s - loss: -55.0617 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 46/50
+27/27 [==============================] - ETA: 0s - loss: -55.0617 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 47/50
+27/27 [==============================] - ETA: 0s - loss: -55.0617 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 48/50
+27/27 [==============================] - ETA: 0s - loss: -55.0617 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 49/50
+27/27 [==============================] - ETA: 0s - loss: -55.0617 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+Epoch 50/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.8639 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -55.0617 - binary_accuracy: 7.8431e-04 - val_loss: -60.1179 - val_binary_accuracy: 5.5096e-04
+
+======== Training Round 7/8 ========
+Epoch 1/50
+27/27 [==============================] - ETA: 0s - loss: -47.9498 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 10s 144ms/step - loss: -47.9498 - binary_accuracy: 4.7059e-04 - val_loss: -56.7281 - val_binary_accuracy: 5.5096e-04
+Epoch 2/50
+27/27 [==============================] - ETA: 0s - loss: -50.9097 - binary_accuracy: 2.3529e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -50.9097 - binary_accuracy: 2.3529e-04 - val_loss: -57.4178 - val_binary_accuracy: 5.5096e-04
+Epoch 3/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.0152 - binary_accuracy: 9.6154e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 99ms/step - loss: -50.8051 - binary_accuracy: 9.4118e-04 - val_loss: -59.1542 - val_binary_accuracy: 5.5096e-04
+Epoch 4/50
+26/27 [===========================>..] - ETA: 0s - loss: -53.8567 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -53.6556 - binary_accuracy: 3.1373e-04 - val_loss: -38.2632 - val_binary_accuracy: 5.5096e-04
+Epoch 5/50
+26/27 [===========================>..] - ETA: 0s - loss: -57.2190 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -57.4025 - binary_accuracy: 3.1373e-04 - val_loss: -67.1992 - val_binary_accuracy: 5.5096e-04
+Epoch 6/50
+27/27 [==============================] - ETA: 0s - loss: -61.8399 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -61.8399 - binary_accuracy: 3.1373e-04 - val_loss: -61.5933 - val_binary_accuracy: 5.5096e-04
+Epoch 7/50
+27/27 [==============================] - ETA: 0s - loss: -61.4579 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -61.4579 - binary_accuracy: 3.1373e-04 - val_loss: -68.2698 - val_binary_accuracy: 5.5096e-04
+Epoch 8/50
+27/27 [==============================] - ETA: 0s - loss: -55.1035 - binary_accuracy: 6.2745e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -55.1035 - binary_accuracy: 6.2745e-04 - val_loss: -67.1526 - val_binary_accuracy: 5.5096e-04
+Epoch 9/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.9707 - binary_accuracy: 1.6026e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -61.9555 - binary_accuracy: 1.5686e-04 - val_loss: -67.5315 - val_binary_accuracy: 5.5096e-04
+Epoch 10/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.9040 - binary_accuracy: 1.6026e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -61.9804 - binary_accuracy: 1.5686e-04 - val_loss: -67.5315 - val_binary_accuracy: 5.5096e-04
+Epoch 11/50
+26/27 [===========================>..] - ETA: 0s - loss: -62.1161 - binary_accuracy: 8.0128e-05WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -61.9828 - binary_accuracy: 1.5686e-04 - val_loss: -67.5315 - val_binary_accuracy: 5.5096e-04
+Epoch 12/50
+27/27 [==============================] - ETA: 0s - loss: -61.9865 - binary_accuracy: 1.5686e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 99ms/step - loss: -61.9865 - binary_accuracy: 1.5686e-04 - val_loss: -67.5315 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 13/50
+26/27 [===========================>..] - ETA: 0s - loss: -62.3950 - binary_accuracy: 1.6026e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 99ms/step - loss: -61.9816 - binary_accuracy: 1.5686e-04 - val_loss: -67.5315 - val_binary_accuracy: 5.5096e-04
+Epoch 14/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.7701 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -60.6203 - binary_accuracy: 2.3529e-04 - val_loss: -66.6181 - val_binary_accuracy: 5.5096e-04
+Epoch 15/50
+27/27 [==============================] - ETA: 0s - loss: -59.0072 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -59.0072 - binary_accuracy: 4.7059e-04 - val_loss: -59.1614 - val_binary_accuracy: 5.5096e-04
+Epoch 16/50
+26/27 [===========================>..] - ETA: 0s - loss: -60.3658 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -60.2316 - binary_accuracy: 3.9216e-04 - val_loss: -66.7116 - val_binary_accuracy: 5.5096e-04
+Epoch 17/50
+27/27 [==============================] - ETA: 0s - loss: -62.1088 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -62.1088 - binary_accuracy: 3.1373e-04 - val_loss: -66.9731 - val_binary_accuracy: 5.5096e-04
+Epoch 18/50
+27/27 [==============================] - ETA: 0s - loss: -60.2230 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -60.2230 - binary_accuracy: 3.1373e-04 - val_loss: -66.7649 - val_binary_accuracy: 5.5096e-04
+Epoch 19/50
+27/27 [==============================] - ETA: 0s - loss: -60.1344 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -60.1344 - binary_accuracy: 3.1373e-04 - val_loss: -69.0430 - val_binary_accuracy: 5.5096e-04
+Epoch 20/50
+27/27 [==============================] - ETA: 0s - loss: -63.0764 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -63.0764 - binary_accuracy: 3.1373e-04 - val_loss: -68.2235 - val_binary_accuracy: 5.5096e-04
+Epoch 21/50
+27/27 [==============================] - ETA: 0s - loss: -60.0299 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -60.0299 - binary_accuracy: 3.1373e-04 - val_loss: -59.9737 - val_binary_accuracy: 5.5096e-04
+Epoch 22/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.3578 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 2s 78ms/step - loss: -57.9271 - binary_accuracy: 3.9216e-04 - val_loss: -66.1833 - val_binary_accuracy: 5.5096e-04
+Epoch 23/50
+26/27 [===========================>..] - ETA: 0s - loss: -62.7696 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -62.9513 - binary_accuracy: 3.1373e-04 - val_loss: -69.4158 - val_binary_accuracy: 5.5096e-04
+Epoch 24/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.3802 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -63.6853 - binary_accuracy: 3.1373e-04 - val_loss: -69.3892 - val_binary_accuracy: 5.5096e-04
+Epoch 25/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.6983 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -63.8644 - binary_accuracy: 3.1373e-04 - val_loss: -69.3928 - val_binary_accuracy: 5.5096e-04
+Epoch 26/50
+27/27 [==============================] - ETA: 0s - loss: -63.8867 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -63.8867 - binary_accuracy: 3.1373e-04 - val_loss: -69.4172 - val_binary_accuracy: 5.5096e-04
+Epoch 27/50
+27/27 [==============================] - ETA: 0s - loss: -63.9525 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -63.9525 - binary_accuracy: 3.1373e-04 - val_loss: -69.9234 - val_binary_accuracy: 5.5096e-04
+Epoch 28/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.1460 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 93ms/step - loss: -63.9816 - binary_accuracy: 7.8431e-04 - val_loss: -68.8237 - val_binary_accuracy: 5.5096e-04
+Epoch 29/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.9169 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -64.1734 - binary_accuracy: 7.0588e-04 - val_loss: -68.8237 - val_binary_accuracy: 5.5096e-04
+Epoch 30/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.1707 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 94ms/step - loss: -64.1785 - binary_accuracy: 7.0588e-04 - val_loss: -68.8237 - val_binary_accuracy: 5.5096e-04
+Epoch 31/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.8460 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -64.1488 - binary_accuracy: 7.0588e-04 - val_loss: -68.8237 - val_binary_accuracy: 5.5096e-04
+Epoch 32/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.2114 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -64.1814 - binary_accuracy: 7.0588e-04 - val_loss: -68.8237 - val_binary_accuracy: 5.5096e-04
+Epoch 33/50
+27/27 [==============================] - ETA: 0s - loss: -64.1258 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -64.1258 - binary_accuracy: 7.8431e-04 - val_loss: -69.5070 - val_binary_accuracy: 5.5096e-04
+Epoch 34/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.2497 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -64.0237 - binary_accuracy: 3.1373e-04 - val_loss: -70.1905 - val_binary_accuracy: 5.5096e-04
+Epoch 35/50
+27/27 [==============================] - ETA: 0s - loss: -64.3347 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -64.3347 - binary_accuracy: 3.1373e-04 - val_loss: -68.9678 - val_binary_accuracy: 5.5096e-04
+Epoch 36/50
+27/27 [==============================] - ETA: 0s - loss: -63.9337 - binary_accuracy: 2.3529e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -63.9337 - binary_accuracy: 2.3529e-04 - val_loss: -69.4107 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 37/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.9648 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 109ms/step - loss: -64.0055 - binary_accuracy: 3.9216e-04 - val_loss: -69.4282 - val_binary_accuracy: 5.5096e-04
+Epoch 38/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.0914 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -64.0197 - binary_accuracy: 3.1373e-04 - val_loss: -69.5278 - val_binary_accuracy: 5.5096e-04
+Epoch 39/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.9617 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -64.2217 - binary_accuracy: 3.1373e-04 - val_loss: -69.6578 - val_binary_accuracy: 5.5096e-04
+Epoch 40/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.7260 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -64.2524 - binary_accuracy: 3.1373e-04 - val_loss: -69.6524 - val_binary_accuracy: 5.5096e-04
+Epoch 41/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.8776 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -64.2495 - binary_accuracy: 3.1373e-04 - val_loss: -69.6461 - val_binary_accuracy: 5.5096e-04
+Epoch 42/50
+26/27 [===========================>..] - ETA: 0s - loss: -63.3580 - binary_accuracy: 5.6090e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -63.9842 - binary_accuracy: 5.4902e-04 - val_loss: -70.7762 - val_binary_accuracy: 5.5096e-04
+Epoch 43/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.5248 - binary_accuracy: 6.4103e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -64.5068 - binary_accuracy: 6.2745e-04 - val_loss: -69.3170 - val_binary_accuracy: 5.5096e-04
+Epoch 44/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.6198 - binary_accuracy: 6.4103e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 2s 92ms/step - loss: -64.5602 - binary_accuracy: 6.2745e-04 - val_loss: -69.3170 - val_binary_accuracy: 5.5096e-04
+Epoch 45/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.1895 - binary_accuracy: 6.4103e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 97ms/step - loss: -64.5592 - binary_accuracy: 6.2745e-04 - val_loss: -69.3170 - val_binary_accuracy: 5.5096e-04
+Epoch 46/50
+27/27 [==============================] - ETA: 0s - loss: -64.5595 - binary_accuracy: 6.2745e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -64.5595 - binary_accuracy: 6.2745e-04 - val_loss: -69.3170 - val_binary_accuracy: 5.5096e-04
+Epoch 47/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.2299 - binary_accuracy: 6.4103e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -64.5460 - binary_accuracy: 6.2745e-04 - val_loss: -69.3170 - val_binary_accuracy: 5.5096e-04
+Epoch 48/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.2627 - binary_accuracy: 6.4103e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -64.5582 - binary_accuracy: 6.2745e-04 - val_loss: -69.3170 - val_binary_accuracy: 5.5096e-04
+Epoch 49/50
+27/27 [==============================] - ETA: 0s - loss: -64.5594 - binary_accuracy: 6.2745e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -64.5594 - binary_accuracy: 6.2745e-04 - val_loss: -69.3170 - val_binary_accuracy: 5.5096e-04
+Epoch 50/50
+27/27 [==============================] - ETA: 0s - loss: -64.5616 - binary_accuracy: 6.2745e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -64.5616 - binary_accuracy: 6.2745e-04 - val_loss: -69.3170 - val_binary_accuracy: 5.5096e-04
+
+======== Training Round 8/8 ========
+Epoch 1/50
+26/27 [===========================>..] - ETA: 0s - loss: -43.5156 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 10s 135ms/step - loss: -43.4347 - binary_accuracy: 3.1373e-04 - val_loss: -56.9092 - val_binary_accuracy: 5.5096e-04
+Epoch 2/50
+26/27 [===========================>..] - ETA: 0s - loss: -48.7863 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -48.9941 - binary_accuracy: 3.9216e-04 - val_loss: -59.1801 - val_binary_accuracy: 5.5096e-04
+Epoch 3/50
+26/27 [===========================>..] - ETA: 0s - loss: -52.2407 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 94ms/step - loss: -52.7868 - binary_accuracy: 7.8431e-04 - val_loss: -59.7733 - val_binary_accuracy: 5.5096e-04
+Epoch 4/50
+26/27 [===========================>..] - ETA: 0s - loss: -53.1694 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -52.9672 - binary_accuracy: 7.0588e-04 - val_loss: -59.7714 - val_binary_accuracy: 5.5096e-04
+Epoch 5/50
+26/27 [===========================>..] - ETA: 0s - loss: -52.6018 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 104ms/step - loss: -52.6209 - binary_accuracy: 7.8431e-04 - val_loss: -59.7753 - val_binary_accuracy: 5.5096e-04
+Epoch 6/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.2163 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -53.7161 - binary_accuracy: 7.0588e-04 - val_loss: -59.7753 - val_binary_accuracy: 5.5096e-04
+Epoch 7/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.0979 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -53.7052 - binary_accuracy: 7.8431e-04 - val_loss: -59.7753 - val_binary_accuracy: 5.5096e-04
+Epoch 8/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.0557 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -53.8920 - binary_accuracy: 7.8431e-04 - val_loss: -60.2791 - val_binary_accuracy: 5.5096e-04
+Epoch 9/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.2837 - binary_accuracy: 8.8141e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -54.4823 - binary_accuracy: 8.6275e-04 - val_loss: -60.4735 - val_binary_accuracy: 5.5096e-04
+Epoch 10/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.0016 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 97ms/step - loss: -53.8633 - binary_accuracy: 7.8431e-04 - val_loss: -58.8270 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 11/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.0251 - binary_accuracy: 7.2115e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 98ms/step - loss: -54.6319 - binary_accuracy: 7.0588e-04 - val_loss: -57.5204 - val_binary_accuracy: 5.5096e-04
+Epoch 12/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.8834 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -52.0821 - binary_accuracy: 7.8431e-04 - val_loss: -57.4317 - val_binary_accuracy: 5.5096e-04
+Epoch 13/50
+26/27 [===========================>..] - ETA: 0s - loss: -52.4428 - binary_accuracy: 8.0128e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -52.6628 - binary_accuracy: 7.8431e-04 - val_loss: -57.3340 - val_binary_accuracy: 5.5096e-04
+Epoch 14/50
+27/27 [==============================] - ETA: 0s - loss: -52.6862 - binary_accuracy: 7.8431e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -52.6862 - binary_accuracy: 7.8431e-04 - val_loss: -57.5911 - val_binary_accuracy: 5.5096e-04
+Epoch 15/50
+27/27 [==============================] - ETA: 0s - loss: -53.3331 - binary_accuracy: 7.0588e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -53.3331 - binary_accuracy: 7.0588e-04 - val_loss: -62.2166 - val_binary_accuracy: 5.5096e-04
+Epoch 16/50
+27/27 [==============================] - ETA: 0s - loss: -52.8685 - binary_accuracy: 8.6275e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -52.8685 - binary_accuracy: 8.6275e-04 - val_loss: -57.0939 - val_binary_accuracy: 5.5096e-04
+Epoch 17/50
+27/27 [==============================] - ETA: 0s - loss: -51.5235 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -51.5235 - binary_accuracy: 4.7059e-04 - val_loss: -57.0554 - val_binary_accuracy: 5.5096e-04
+Epoch 18/50
+27/27 [==============================] - ETA: 0s - loss: -51.7965 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 109ms/step - loss: -51.7965 - binary_accuracy: 4.7059e-04 - val_loss: -57.0467 - val_binary_accuracy: 5.5096e-04
+Epoch 19/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.1497 - binary_accuracy: 5.6090e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -51.6851 - binary_accuracy: 5.4902e-04 - val_loss: -57.0909 - val_binary_accuracy: 5.5096e-04
+Epoch 20/50
+26/27 [===========================>..] - ETA: 0s - loss: -51.8997 - binary_accuracy: 5.6090e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -52.0171 - binary_accuracy: 5.4902e-04 - val_loss: -57.0983 - val_binary_accuracy: 5.5096e-04
+Epoch 21/50
+27/27 [==============================] - ETA: 0s - loss: -51.7904 - binary_accuracy: 3.9216e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 107ms/step - loss: -51.7904 - binary_accuracy: 3.9216e-04 - val_loss: -57.1166 - val_binary_accuracy: 5.5096e-04
+Epoch 22/50
+27/27 [==============================] - ETA: 0s - loss: -52.0276 - binary_accuracy: 3.9216e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 106ms/step - loss: -52.0276 - binary_accuracy: 3.9216e-04 - val_loss: -57.1180 - val_binary_accuracy: 5.5096e-04
+Epoch 23/50
+27/27 [==============================] - ETA: 0s - loss: -51.8479 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 109ms/step - loss: -51.8479 - binary_accuracy: 4.7059e-04 - val_loss: -57.0527 - val_binary_accuracy: 5.5096e-04
+Epoch 24/50
+27/27 [==============================] - ETA: 0s - loss: -51.7755 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -51.7755 - binary_accuracy: 4.7059e-04 - val_loss: -57.0966 - val_binary_accuracy: 5.5096e-04
+Epoch 25/50
+27/27 [==============================] - ETA: 0s - loss: -52.0418 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -52.0418 - binary_accuracy: 4.7059e-04 - val_loss: -57.0087 - val_binary_accuracy: 5.5096e-04
+Epoch 26/50
+27/27 [==============================] - ETA: 0s - loss: -55.7904 - binary_accuracy: 2.3529e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -55.7904 - binary_accuracy: 2.3529e-04 - val_loss: -64.4920 - val_binary_accuracy: 5.5096e-04
+Epoch 27/50
+27/27 [==============================] - ETA: 0s - loss: -58.0591 - binary_accuracy: 2.3529e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 109ms/step - loss: -58.0591 - binary_accuracy: 2.3529e-04 - val_loss: -63.9599 - val_binary_accuracy: 5.5096e-04
+Epoch 28/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.4249 - binary_accuracy: 1.6026e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 101ms/step - loss: -58.4045 - binary_accuracy: 1.5686e-04 - val_loss: -64.5155 - val_binary_accuracy: 5.5096e-04
+Epoch 29/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.6456 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -58.8380 - binary_accuracy: 2.3529e-04 - val_loss: -64.4105 - val_binary_accuracy: 5.5096e-04
+Epoch 30/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.7553 - binary_accuracy: 1.6026e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 2s 91ms/step - loss: -58.9420 - binary_accuracy: 1.5686e-04 - val_loss: -64.2061 - val_binary_accuracy: 5.5096e-04
+Epoch 31/50
+26/27 [===========================>..] - ETA: 0s - loss: -59.0471 - binary_accuracy: 1.6026e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 99ms/step - loss: -58.9330 - binary_accuracy: 1.5686e-04 - val_loss: -64.4775 - val_binary_accuracy: 5.5096e-04
+Epoch 32/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.7198 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 110ms/step - loss: -58.9164 - binary_accuracy: 2.3529e-04 - val_loss: -64.5645 - val_binary_accuracy: 5.5096e-04
+Epoch 33/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.5351 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -58.9538 - binary_accuracy: 2.3529e-04 - val_loss: -64.2820 - val_binary_accuracy: 5.5096e-04
+Epoch 34/50
+26/27 [===========================>..] - ETA: 0s - loss: -54.8246 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 103ms/step - loss: -54.8824 - binary_accuracy: 3.9216e-04 - val_loss: -62.5201 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 35/50
+26/27 [===========================>..] - ETA: 0s - loss: -55.1160 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 108ms/step - loss: -54.9102 - binary_accuracy: 3.9216e-04 - val_loss: -42.4585 - val_binary_accuracy: 5.5096e-04
+Epoch 36/50
+26/27 [===========================>..] - ETA: 0s - loss: -57.4139 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 105ms/step - loss: -57.5993 - binary_accuracy: 3.1373e-04 - val_loss: -64.4510 - val_binary_accuracy: 5.5096e-04
+Epoch 37/50
+27/27 [==============================] - ETA: 0s - loss: -60.6746 - binary_accuracy: 4.7059e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 100ms/step - loss: -60.6746 - binary_accuracy: 4.7059e-04 - val_loss: -67.2769 - val_binary_accuracy: 5.5096e-04
+Epoch 38/50
+26/27 [===========================>..] - ETA: 0s - loss: -59.8780 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -59.7561 - binary_accuracy: 3.1373e-04 - val_loss: -65.8942 - val_binary_accuracy: 5.5096e-04
+Epoch 39/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.4847 - binary_accuracy: 6.4103e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -61.8398 - binary_accuracy: 6.2745e-04 - val_loss: -68.1194 - val_binary_accuracy: 5.5096e-04
+Epoch 40/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.5688 - binary_accuracy: 4.8077e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -62.1674 - binary_accuracy: 4.7059e-04 - val_loss: -68.1194 - val_binary_accuracy: 5.5096e-04
+Epoch 41/50
+26/27 [===========================>..] - ETA: 0s - loss: -58.2138 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 111ms/step - loss: -58.3202 - binary_accuracy: 3.9216e-04 - val_loss: -67.1596 - val_binary_accuracy: 5.5096e-04
+Epoch 42/50
+27/27 [==============================] - ETA: 0s - loss: -59.7250 - binary_accuracy: 5.4902e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -59.7250 - binary_accuracy: 5.4902e-04 - val_loss: -67.3851 - val_binary_accuracy: 5.5096e-04
+Epoch 43/50
+27/27 [==============================] - ETA: 0s - loss: -64.5617 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -64.5617 - binary_accuracy: 3.1373e-04 - val_loss: -71.1114 - val_binary_accuracy: 5.5096e-04
+Epoch 44/50
+26/27 [===========================>..] - ETA: 0s - loss: -65.1344 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 114ms/step - loss: -64.9052 - binary_accuracy: 3.1373e-04 - val_loss: -71.1209 - val_binary_accuracy: 5.5096e-04
+Epoch 45/50
+26/27 [===========================>..] - ETA: 0s - loss: -64.5735 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -65.1620 - binary_accuracy: 3.9216e-04 - val_loss: -71.1114 - val_binary_accuracy: 5.5096e-04
+Epoch 46/50
+27/27 [==============================] - ETA: 0s - loss: -64.8959 - binary_accuracy: 3.9216e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -64.8959 - binary_accuracy: 3.9216e-04 - val_loss: -71.1114 - val_binary_accuracy: 5.5096e-04
+Epoch 47/50
+26/27 [===========================>..] - ETA: 0s - loss: -65.1786 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -65.4615 - binary_accuracy: 3.9216e-04 - val_loss: -71.0995 - val_binary_accuracy: 5.5096e-04
+Epoch 48/50
+26/27 [===========================>..] - ETA: 0s - loss: -65.2116 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 112ms/step - loss: -65.5314 - binary_accuracy: 3.9216e-04 - val_loss: -71.1114 - val_binary_accuracy: 5.5096e-04
+Epoch 49/50
+26/27 [===========================>..] - ETA: 0s - loss: -65.7564 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 113ms/step - loss: -65.5820 - binary_accuracy: 3.9216e-04 - val_loss: -71.1114 - val_binary_accuracy: 5.5096e-04
+Epoch 50/50
+26/27 [===========================>..] - ETA: 0s - loss: -65.8465 - binary_accuracy: 4.0064e-04WARNING:tensorflow:Can save best model only with val_loss8 available, skipping.
+27/27 [==============================] - 3s 102ms/step - loss: -65.6163 - binary_accuracy: 3.9216e-04 - val_loss: -71.1114 - val_binary_accuracy: 5.5096e-04
+
+CELL 21
+colors = ['#00BCD4', '#E91E63', '#8BC34A', '#FF9800', '#3F51B5', '#9C27B0', '#FFEB3B', '#009688']
+
+plt.figure(figsize=(5, 5))
+
+for i, history in enumerate(history_list):
+    color = colors[i % len(colors)]
+    plt.plot(history.history['loss'], label=f'Run {i+1} - Train', color=color, linewidth=2.2)
+    plt.plot(history.history['val_loss'], linestyle='--', label=f'Run {i+1} - Val', color=color, alpha=0.5, linewidth=2)
+
+plt.title('Multi-GNNtransformer model on bank sector', fontsize=10)
+plt.xlabel('Epoch', fontsize=10)
+plt.ylabel('Loss', fontsize=10)
+#plt.legend(loc='upper right', fontsize=10, frameon=True, edgecolor='gray', facecolor='white')
+#plt.grid(True, linestyle='--', linewidth=0.6, alpha=0.3)
+
+# 去除上右边框
+ax = plt.gca()
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+
+plt.tight_layout()
+plt.savefig('*********gnntransformer_loss_curve.svg', format='svg', dpi=300, bbox_inches='tight')
+plt.show()
+CELL 22
+import matplotlib as mpl
+mpl.rcParams.update(mpl.rcParamsDefault)
+plt.style.use('default')
+
+colors = ['#00BCD4', '#E91E63', '#8BC34A', '#FF9800', '#3F51B5', '#9C27B0', '#FFEB3B', '#009688']
+fig, ax = plt.subplots(figsize=(5, 5))
+#plt.figure(figsize=(5, 5))
+for i, history in enumerate(history_list):
+    color = colors[i % len(colors)]
+    plt.plot(history.history['loss'], label=f'Run {i+1} - Train', color=color, linewidth=2)
+    plt.plot(history.history['val_loss'], '--', label=f'Run {i+1} - Val', color=color, alpha=0.6, linewidth=2)
+
+#plt.title('Multi-GATGRU Model on Bank sector', fontsize=10)
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+
+#plt.legend(loc='upper right', fontsize=10)
+#plt.grid(True, linestyle='--', alpha=0.3)
+plt.text(0.5, -0.15, '(b) Multi-GNNGRU model on bank sector', transform=ax.transAxes, fontsize=10, ha='center')
+plt.tight_layout()
+plt.savefig('*********gnntransformer_loss_curve1.svg', format='svg', dpi=300, bbox_inches='tight')
+plt.show()
+
+CELL 23
+# 加载第8次最优模型权重
+model.load_weights('D:/paper/onging/data/graph/bankGNNTransformer')
+
+# 预测
+y_pred = model.predict(x_test)
+
+# 分类任务处理：若为 one-hot 编码，取最大值索引；否则为二分类阈值判断
+if y_pred.shape[-1] > 1:
+    y_pred_class = np.argmax(y_pred, axis=-1)
+    y_true_class = np.argmax(y_test, axis=-1)
+else:
+    y_pred_class = (y_pred > 0.5).astype(int)
+    y_true_class = y_test
+
+# 绘制对比图
+plt.figure(figsize=(17, 3))
+plt.plot(y_true_class[:300], label='True', marker='o')
+plt.plot(y_pred_class[:300], label='Predicted', marker='x')
+plt.title('True vs Predicted bank sector based on multi-GNNGRU', fontsize=10)
+plt.xlabel('Trading day')
+plt.ylabel('Price')
+plt.legend()
+#plt.grid(True, linestyle='--', alpha=0.3)
+plt.tight_layout()
+plt.savefig('D:/paper/onging/graph/bankgnntransformer_pred_vs_true.svg', format='svg', dpi=300, bbox_inches='tight')
+plt.show()
+
+CELL 24
+
+
+
+Epochs = 50
+Batch_size =32
+tb = TensorBoard('*********GNNTransformer')
+tf_callback = tf.keras.callbacks.TensorBoard(log_dir="*********GNNTransformer",write_graph=True,write_images=True)
+History = model.fit(x_train, y_train1, batch_size=Batch_size, epochs=Epochs, callbacks=[model_checkpoint,tb], validation_data=(x_val, y_val1))
+
+
+# Overfitting Observation
+loss = History.history['loss']
+val_loss = History.history['val_loss']
+
+E = [i for i in range(Epochs)]
+plt.plot(E, loss,'b-',label='Multi-GNNTransformer loss')
+plt.plot(E, val_loss,'r-',label='Multi-GNNTransformer val_loss')
+
+plt.legend()
+plt.title('Multi-GNNTransformer Loss VS Val_loss')
+plt.xlabel('Epoch')
+plt.ylabel('Value')
+# Prediction
+model.load_weights('*********GNNTransformer')
+result = model.evaluate(x_test, y_test1)
+print(result)
+OUTPUT
+Epoch 1/50
+27/27 [==============================] - ETA: 0s - loss: -45.0119 - binary_accuracy: 2.3529e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 3s 45ms/step - loss: -45.0119 - binary_accuracy: 2.3529e-04 - val_loss: -57.3869 - val_binary_accuracy: 5.5096e-04
+Epoch 2/50
+27/27 [==============================] - ETA: 0s - loss: -52.5297 - binary_accuracy: 3.9216e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -52.5297 - binary_accuracy: 3.9216e-04 - val_loss: -65.2651 - val_binary_accuracy: 5.5096e-04
+Epoch 3/50
+25/27 [==========================>...] - ETA: 0s - loss: -53.5069 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 33ms/step - loss: -53.5830 - binary_accuracy: 3.9216e-04 - val_loss: -63.8744 - val_binary_accuracy: 5.5096e-04
+Epoch 4/50
+25/27 [==========================>...] - ETA: 0s - loss: -60.2148 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -60.4159 - binary_accuracy: 3.1373e-04 - val_loss: -66.2817 - val_binary_accuracy: 5.5096e-04
+Epoch 5/50
+25/27 [==========================>...] - ETA: 0s - loss: -62.2380 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.1467 - binary_accuracy: 3.1373e-04 - val_loss: -54.8513 - val_binary_accuracy: 5.5096e-04
+Epoch 6/50
+25/27 [==========================>...] - ETA: 0s - loss: -59.8900 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -60.5038 - binary_accuracy: 3.1373e-04 - val_loss: -66.8434 - val_binary_accuracy: 5.5096e-04
+Epoch 7/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.8109 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.5389 - binary_accuracy: 3.1373e-04 - val_loss: -66.8434 - val_binary_accuracy: 5.5096e-04
+Epoch 8/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.6763 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5392 - binary_accuracy: 3.1373e-04 - val_loss: -66.8434 - val_binary_accuracy: 5.5096e-04
+Epoch 9/50
+25/27 [==========================>...] - ETA: 0s - loss: -61.4630 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 33ms/step - loss: -61.5406 - binary_accuracy: 3.1373e-04 - val_loss: -66.8434 - val_binary_accuracy: 5.5096e-04
+Epoch 10/50
+25/27 [==========================>...] - ETA: 0s - loss: -61.9460 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5382 - binary_accuracy: 3.1373e-04 - val_loss: -66.8433 - val_binary_accuracy: 5.5096e-04
+Epoch 11/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.4398 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.5404 - binary_accuracy: 3.1373e-04 - val_loss: -66.8433 - val_binary_accuracy: 5.5096e-04
+Epoch 12/50
+25/27 [==========================>...] - ETA: 0s - loss: -62.0593 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.5393 - binary_accuracy: 3.1373e-04 - val_loss: -66.8456 - val_binary_accuracy: 5.5096e-04
+Epoch 13/50
+25/27 [==========================>...] - ETA: 0s - loss: -62.1014 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.6998 - binary_accuracy: 3.1373e-04 - val_loss: -66.8606 - val_binary_accuracy: 5.5096e-04
+Epoch 14/50
+26/27 [===========================>..] - ETA: 0s - loss: -62.3282 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.8380 - binary_accuracy: 3.1373e-04 - val_loss: -67.1719 - val_binary_accuracy: 5.5096e-04
+Epoch 15/50
+26/27 [===========================>..] - ETA: 0s - loss: -62.3269 - binary_accuracy: 2.4038e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.8212 - binary_accuracy: 3.1373e-04 - val_loss: -66.8434 - val_binary_accuracy: 5.5096e-04
+Epoch 16/50
+25/27 [==========================>...] - ETA: 0s - loss: -61.7545 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.5281 - binary_accuracy: 3.1373e-04 - val_loss: -66.8434 - val_binary_accuracy: 5.5096e-04
+Epoch 17/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.4617 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5246 - binary_accuracy: 3.1373e-04 - val_loss: -66.8434 - val_binary_accuracy: 5.5096e-04
+Epoch 18/50
+25/27 [==========================>...] - ETA: 0s - loss: -61.5984 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5421 - binary_accuracy: 3.1373e-04 - val_loss: -66.8434 - val_binary_accuracy: 5.5096e-04
+Epoch 19/50
+25/27 [==========================>...] - ETA: 0s - loss: -61.2395 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5398 - binary_accuracy: 3.1373e-04 - val_loss: -66.8434 - val_binary_accuracy: 5.5096e-04
+Epoch 20/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.5791 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.5456 - binary_accuracy: 3.1373e-04 - val_loss: -67.3344 - val_binary_accuracy: 5.5096e-04
+Epoch 21/50
+26/27 [===========================>..] - ETA: 0s - loss: -62.0262 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.4743 - binary_accuracy: 3.1373e-04 - val_loss: -66.6942 - val_binary_accuracy: 5.5096e-04
+Epoch 22/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.2429 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.3351 - binary_accuracy: 3.1373e-04 - val_loss: -51.3007 - val_binary_accuracy: 5.5096e-04
+Epoch 23/50
+25/27 [==========================>...] - ETA: 0s - loss: -60.3385 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 33ms/step - loss: -60.7084 - binary_accuracy: 3.1373e-04 - val_loss: -66.8433 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 24/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.0586 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5271 - binary_accuracy: 3.1373e-04 - val_loss: -66.8433 - val_binary_accuracy: 5.5096e-04
+Epoch 25/50
+27/27 [==============================] - ETA: 0s - loss: -61.5336 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5336 - binary_accuracy: 3.1373e-04 - val_loss: -66.8433 - val_binary_accuracy: 5.5096e-04
+Epoch 26/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.3384 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5295 - binary_accuracy: 3.1373e-04 - val_loss: -66.8433 - val_binary_accuracy: 5.5096e-04
+Epoch 27/50
+25/27 [==========================>...] - ETA: 0s - loss: -60.4667 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5388 - binary_accuracy: 3.1373e-04 - val_loss: -66.8434 - val_binary_accuracy: 5.5096e-04
+Epoch 28/50
+25/27 [==========================>...] - ETA: 0s - loss: -61.7770 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5418 - binary_accuracy: 3.1373e-04 - val_loss: -66.8433 - val_binary_accuracy: 5.5096e-04
+Epoch 29/50
+25/27 [==========================>...] - ETA: 0s - loss: -61.1590 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5408 - binary_accuracy: 3.1373e-04 - val_loss: -66.8434 - val_binary_accuracy: 5.5096e-04
+Epoch 30/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.8329 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5408 - binary_accuracy: 3.1373e-04 - val_loss: -66.8434 - val_binary_accuracy: 5.5096e-04
+Epoch 31/50
+25/27 [==========================>...] - ETA: 0s - loss: -61.8735 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5522 - binary_accuracy: 3.1373e-04 - val_loss: -67.1004 - val_binary_accuracy: 5.5096e-04
+Epoch 32/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.9305 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.7301 - binary_accuracy: 3.1373e-04 - val_loss: -67.0472 - val_binary_accuracy: 5.5096e-04
+Epoch 33/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.5805 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.6424 - binary_accuracy: 3.1373e-04 - val_loss: -67.0360 - val_binary_accuracy: 5.5096e-04
+Epoch 34/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.5112 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.7719 - binary_accuracy: 3.1373e-04 - val_loss: -66.9878 - val_binary_accuracy: 5.5096e-04
+Epoch 35/50
+27/27 [==============================] - ETA: 0s - loss: -61.7336 - binary_accuracy: 3.1373e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.7336 - binary_accuracy: 3.1373e-04 - val_loss: -66.7726 - val_binary_accuracy: 5.5096e-04
+Epoch 36/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.2199 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5090 - binary_accuracy: 3.1373e-04 - val_loss: -66.7808 - val_binary_accuracy: 5.5096e-04
+Epoch 37/50
+25/27 [==========================>...] - ETA: 0s - loss: -60.7638 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.5194 - binary_accuracy: 3.1373e-04 - val_loss: -66.7847 - val_binary_accuracy: 5.5096e-04
+Epoch 38/50
+26/27 [===========================>..] - ETA: 0s - loss: -62.0921 - binary_accuracy: 1.6026e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5187 - binary_accuracy: 3.1373e-04 - val_loss: -66.7873 - val_binary_accuracy: 5.5096e-04
+Epoch 39/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.8517 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.5240 - binary_accuracy: 3.1373e-04 - val_loss: -66.7902 - val_binary_accuracy: 5.5096e-04
+Epoch 40/50
+25/27 [==========================>...] - ETA: 0s - loss: -61.2646 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5233 - binary_accuracy: 3.1373e-04 - val_loss: -66.7923 - val_binary_accuracy: 5.5096e-04
+Epoch 41/50
+25/27 [==========================>...] - ETA: 0s - loss: -60.9784 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5259 - binary_accuracy: 3.1373e-04 - val_loss: -66.7947 - val_binary_accuracy: 5.5096e-04
+Epoch 42/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.4149 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.5293 - binary_accuracy: 3.1373e-04 - val_loss: -66.7968 - val_binary_accuracy: 5.5096e-04
+Epoch 43/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.7209 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5322 - binary_accuracy: 3.1373e-04 - val_loss: -66.7989 - val_binary_accuracy: 5.5096e-04
+Epoch 44/50
+25/27 [==========================>...] - ETA: 0s - loss: -60.8191 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.5331 - binary_accuracy: 3.1373e-04 - val_loss: -66.8012 - val_binary_accuracy: 5.5096e-04
+Epoch 45/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.1491 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5362 - binary_accuracy: 3.1373e-04 - val_loss: -66.8036 - val_binary_accuracy: 5.5096e-04
+Epoch 46/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.0445 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5367 - binary_accuracy: 3.1373e-04 - val_loss: -66.8065 - val_binary_accuracy: 5.5096e-04
+
+OUTPUT
+Epoch 47/50
+25/27 [==========================>...] - ETA: 0s - loss: -61.4467 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5396 - binary_accuracy: 3.1373e-04 - val_loss: -66.8093 - val_binary_accuracy: 5.5096e-04
+Epoch 48/50
+25/27 [==========================>...] - ETA: 0s - loss: -61.4184 - binary_accuracy: 3.3333e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 32ms/step - loss: -61.5488 - binary_accuracy: 3.1373e-04 - val_loss: -66.8133 - val_binary_accuracy: 5.5096e-04
+Epoch 49/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.3226 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.5381 - binary_accuracy: 3.1373e-04 - val_loss: -66.8168 - val_binary_accuracy: 5.5096e-04
+Epoch 50/50
+26/27 [===========================>..] - ETA: 0s - loss: -61.3144 - binary_accuracy: 3.2051e-04WARNING:tensorflow:Can save best model only with val_categorical_crossentropy available, skipping.
+27/27 [==============================] - 1s 31ms/step - loss: -61.5512 - binary_accuracy: 3.1373e-04 - val_loss: -66.8218 - val_binary_accuracy: 5.5096e-04
+8/8 [==============================] - 0s 15ms/step - loss: -16.4003 - binary_accuracy: 0.0000e+00
+[-16.400320053100586, 0.0]
+
+OUTPUT
+<Figure size 640x480 with 1 Axes>
+CELL 25
+y_pred1 = pd.DataFrame(y_pred, columns=['PAD', 'SPDB', 'HXB', 'CMBC', 'CMB', 'CIB', 'ABC', 'BOCOM', 'ICBC','PSBC', 'CEB', 'CZB', 'CCB', 'BOC', 'ECITIC'])
+y_pred1.to_csv('*********gnntransformerpredict.csv')
+y_pred2 = pd.DataFrame(y_pred_class, columns=['bankgnngru'])
+y_pred2.to_csv('*********gnntransformerpredict2.csv')
+CELL 26

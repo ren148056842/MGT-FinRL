@@ -1,0 +1,3 @@
+WARNING: Ignoring invalid distribution - (c:\users\perfe\.conda\envs\finrl-meta\lib\site-packages)
+WARNING: Ignoring invalid distribution -ensorflow-intel (c:\users\perfe\.conda\envs\finrl-meta\lib\site-packages)
+WARNING: Ignoring invalid distribution -rotobuf (c:\users\perfe\.conda\envs\finrl-meta\lib\site-packages)
