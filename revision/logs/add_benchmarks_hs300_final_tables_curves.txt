@@ -1,0 +1,633 @@
+CELL 0
+# Add Buy-and-Hold, Equal Weight, and CSI 300 benchmarks
+
+Run this notebook after the final PPO/A2C/SAC/TD3/DDPG and MGT-PPO/MGT-A2C/MGT-SAC/MGT-TD3/MGT-DDPG CSV files have been exported. It computes benchmark rows and draws account-value curves for both sectors.
+CELL 1
+# -*- coding: utf-8 -*-
+"""
+Add Buy-and-Hold, Equal Weight, and CSI 300 benchmarks to final MGT-FinRL tables,
+and draw account-value curves for the banking sector and healthcare innovation sector.
+
+Output style is consistent with the forecast-to-policy ablation tables:
+CR, AR, SR, MDD, Calmar, Sortino, Final value.
+
+Author: generated for MGT-FinRL paper revision
+"""
+
+from __future__ import annotations
+
+import os
+import warnings
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+
+# =========================
+# 0. User configuration
+# =========================
+DATA_DIR = Path(r"D:/paper/onging/data/graph")
+# Strategy csvs such as banktrade20241231a2c.csv and mergebanktrade20241231a2c.csv.
+# If they are saved in another folder, change this path.
+STRATEGY_DIR = DATA_DIR
+OUT_DIR = Path(r"D:/paper/onging/final_results_with_benchmarks")
+TABLE_DIR = OUT_DIR / "tables"
+FIG_DIR = OUT_DIR / "figures"
+TABLE_DIR.mkdir(parents=True, exist_ok=True)
+FIG_DIR.mkdir(parents=True, exist_ok=True)
+
+INITIAL_CAPITAL = 1_000_000
+TRADING_DAYS = 252
+RISK_FREE_RATE = 0.0
+
+# Article backtest period. The code will also align all curves to the actually available strategy dates.
+EVAL_START = "2023-01-03"
+EVAL_END = "2024-12-30"
+ALIGN_TO_STRATEGY_DATES = True
+
+# Raw market data files. These should be the 15-stock observed OHLCV panels, not the prediction files.
+BANK_PRICE_FILE = DATA_DIR / "banktrade20241231.csv"
+HEALTHCARE_PRICE_FILE = DATA_DIR / "techtrade20241231.csv"
+
+# If you already have CSI 300 / HS300 locally, place one of these files in DATA_DIR.
+# It should contain a date column and a close column. Common date names and close names are auto-detected.
+HS300_LOCAL_CANDIDATES = [
+    DATA_DIR / "hs300.csv",
+    DATA_DIR / "HS300.csv",
+    DATA_DIR / "000300.csv",
+    DATA_DIR / "000300.SH.csv",
+    DATA_DIR / "sh000300.csv",
+    DATA_DIR / "CSI300.csv",
+]
+
+SECTORS = {
+    "bank": {
+        "sector_name": "Banking sector",
+        "price_file": BANK_PRICE_FILE,
+        "baseline_prefix": "banktrade20241231",
+        "mgt_prefix": "mergebanktrade20241231",
+        "table_label": "tab:final_portfolio_bank_with_benchmarks",
+        "table_caption": "Final portfolio performance comparison on the banking sector with passive and market benchmarks.",
+        "figure_stem": "fig_final_bank_account_value_with_benchmarks",
+    },
+    "healthcare": {
+        "sector_name": "Healthcare innovation sector",
+        "price_file": HEALTHCARE_PRICE_FILE,
+        "baseline_prefix": "techtrade20241231",
+        "mgt_prefix": "mergetechtrade20241231",
+        "table_label": "tab:final_portfolio_healthcare_with_benchmarks",
+        "table_caption": "Final portfolio performance comparison on the healthcare innovation sector with passive and market benchmarks.",
+        "figure_stem": "fig_final_healthcare_account_value_with_benchmarks",
+    },
+}
+
+AGENTS = ["ppo", "a2c", "sac", "td3", "ddpg"]
+AGENT_LABEL = {"ppo": "PPO", "a2c": "A2C", "sac": "SAC", "td3": "TD3", "ddpg": "DDPG"}
+
+# Paper-style colors. Same agent = same color; original DRL = dashed, MGT-DRL = solid.
+PALETTE = {
+    "PPO": "#2F6BFF",
+    "A2C": "#00A6A6",
+    "SAC": "#7A3FF2",
+    "TD3": "#F2A900",
+    "DDPG": "#D84A4A",
+    "MGT-PPO": "#2F6BFF",
+    "MGT-A2C": "#00A6A6",
+    "MGT-SAC": "#7A3FF2",
+    "MGT-TD3": "#F2A900",
+    "MGT-DDPG": "#D84A4A",
+    "Buy-and-Hold": "#333333",
+    "Equal Weight": "#666666",
+    "CSI 300": "#111111",
+}
+LINESTYLE = {
+    "PPO": "--", "A2C": "--", "SAC": "--", "TD3": "--", "DDPG": "--",
+    "MGT-PPO": "-", "MGT-A2C": "-", "MGT-SAC": "-", "MGT-TD3": "-", "MGT-DDPG": "-",
+    "Buy-and-Hold": ":", "Equal Weight": "-.", "CSI 300": (0, (5, 1, 1, 1)),
+}
+
+# =========================
+# 1. Basic helpers
+# =========================
+
+def _standardize_date(s: pd.Series) -> pd.Series:
+    return pd.to_datetime(s, errors="coerce").dt.normalize()
+
+
+def _find_col(cols: List[str], candidates: List[str]) -> Optional[str]:
+    lower_map = {c.lower().strip(): c for c in cols}
+    for cand in candidates:
+        if cand.lower() in lower_map:
+            return lower_map[cand.lower()]
+    # fuzzy contains
+    for c in cols:
+        cl = c.lower().strip()
+        for cand in candidates:
+            if cand.lower() in cl:
+                return c
+    return None
+
+
+def _load_account_csv(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        raise FileNotFoundError(f"Strategy result file not found: {path}")
+    df = pd.read_csv(path)
+    date_col = _find_col(list(df.columns), ["date", "datetime", "time", "trade_date"])
+    if date_col is None:
+        raise ValueError(f"No date column found in {path}. Columns={df.columns.tolist()}")
+    df[date_col] = _standardize_date(df[date_col])
+    df = df.dropna(subset=[date_col]).rename(columns={date_col: "date"}).sort_values("date")
+
+    acc_col = _find_col(list(df.columns), ["account_value", "account", "asset", "portfolio_value", "value", "nav"])
+    ret_col = _find_col(list(df.columns), ["daily_return", "return", "daily_ret", "ret"])
+
+    if acc_col is not None:
+        account = pd.to_numeric(df[acc_col], errors="coerce")
+        # Many FinRL exports save normalized NAV around 1.0. Convert to account value.
+        if account.dropna().median() < 1000:
+            account = account * INITIAL_CAPITAL
+        out = pd.DataFrame({"date": df["date"], "account_value": account})
+        out = out.dropna().drop_duplicates("date", keep="last").sort_values("date")
+        out["daily_return"] = out["account_value"].pct_change().fillna(0.0)
+        return out
+
+    if ret_col is None:
+        raise ValueError(f"Neither account_value nor daily_return was found in {path}. Columns={df.columns.tolist()}")
+    ret = pd.to_numeric(df[ret_col], errors="coerce").fillna(0.0)
+    out = pd.DataFrame({"date": df["date"], "daily_return": ret})
+    out = out.dropna().drop_duplicates("date", keep="last").sort_values("date")
+    out["account_value"] = INITIAL_CAPITAL * (1.0 + out["daily_return"]).cumprod()
+    return out
+
+
+def _load_price_panel(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Raw 15-stock data file not found: {path}\n"
+            f"Please check DATA_DIR and the file names BANK_PRICE_FILE / HEALTHCARE_PRICE_FILE."
+        )
+    df = pd.read_csv(path)
+    date_col = _find_col(list(df.columns), ["date", "datetime", "time", "trade_date"])
+    tic_col = _find_col(list(df.columns), ["tic", "ts_code", "symbol", "code", "ticker", "stock"])
+    close_col = _find_col(list(df.columns), ["close", "Close", "adj_close", "close_price"])
+    if date_col is None or tic_col is None or close_col is None:
+        raise ValueError(
+            f"Cannot identify date/tic/close columns in {path}.\n"
+            f"Detected date={date_col}, tic={tic_col}, close={close_col}; columns={df.columns.tolist()}"
+        )
+    out = df[[date_col, tic_col, close_col]].copy()
+    out.columns = ["date", "tic", "close"]
+    out["date"] = _standardize_date(out["date"])
+    out["close"] = pd.to_numeric(out["close"], errors="coerce")
+    out = out.dropna(subset=["date", "tic", "close"])
+    out = out.sort_values(["date", "tic"]).drop_duplicates(["date", "tic"], keep="last")
+    return out
+
+
+def _price_matrix(panel: pd.DataFrame, dates: pd.Series | List[pd.Timestamp]) -> pd.DataFrame:
+    dates = pd.to_datetime(pd.Series(dates)).dt.normalize().dropna().drop_duplicates().sort_values()
+    px = panel.pivot(index="date", columns="tic", values="close").sort_index()
+    # Use the same date grid as strategy results. Missing stock prices are filled carefully.
+    px = px.reindex(dates)
+    px = px.ffill().bfill()
+    px = px.dropna(axis=1, how="any")
+    if px.shape[1] < 2:
+        raise ValueError(f"Too few stocks after date alignment. Matrix shape={px.shape}")
+    return px
+
+
+def buy_and_hold_equal_initial(panel: pd.DataFrame, dates: pd.Series | List[pd.Timestamp]) -> pd.DataFrame:
+    px = _price_matrix(panel, dates)
+    first = px.iloc[0]
+    shares = (INITIAL_CAPITAL / px.shape[1]) / first
+    account = px.mul(shares, axis=1).sum(axis=1)
+    out = pd.DataFrame({"date": px.index, "account_value": account.values})
+    out["daily_return"] = out["account_value"].pct_change().fillna(0.0)
+    return out
+
+
+def equal_weight_rebalanced(panel: pd.DataFrame, dates: pd.Series | List[pd.Timestamp]) -> pd.DataFrame:
+    px = _price_matrix(panel, dates)
+    ret = px.pct_change().fillna(0.0)
+    port_ret = ret.mean(axis=1)
+    account = INITIAL_CAPITAL * (1.0 + port_ret).cumprod()
+    out = pd.DataFrame({"date": px.index, "daily_return": port_ret.values, "account_value": account.values})
+    return out
+
+# =========================
+# 2. CSI 300 / HS300
+# =========================
+
+def _load_hs300_local() -> Optional[pd.DataFrame]:
+    for path in HS300_LOCAL_CANDIDATES:
+        if not path.exists():
+            continue
+        df = pd.read_csv(path)
+        date_col = _find_col(list(df.columns), ["date", "datetime", "time", "trade_date", "日期"])
+        close_col = _find_col(list(df.columns), ["close", "Close", "收盘", "收盘价"])
+        if date_col is None or close_col is None:
+            warnings.warn(f"Skip {path}: cannot identify date/close columns. columns={df.columns.tolist()}")
+            continue
+        out = df[[date_col, close_col]].copy()
+        out.columns = ["date", "close"]
+        out["date"] = _standardize_date(out["date"])
+        out["close"] = pd.to_numeric(out["close"], errors="coerce")
+        out = out.dropna().drop_duplicates("date", keep="last").sort_values("date")
+        if len(out) > 5:
+            print(f"Loaded CSI 300 from local file: {path}")
+            return out
+    return None
+
+
+def _load_hs300_akshare(start: str, end: str) -> Optional[pd.DataFrame]:
+    try:
+        import akshare as ak
+    except Exception as e:
+        warnings.warn(f"akshare is not installed; skip online CSI 300 download. Error: {e}")
+        return None
+
+    # Eastmoney daily index API. If this API changes, try the fallback below.
+    funcs = []
+    if hasattr(ak, "stock_zh_index_daily_em"):
+        funcs.append((ak.stock_zh_index_daily_em, {"symbol": "sh000300"}))
+    if hasattr(ak, "stock_zh_index_daily"):
+        funcs.append((ak.stock_zh_index_daily, {"symbol": "sh000300"}))
+
+    for fn, kwargs in funcs:
+        try:
+            df = fn(**kwargs)
+            date_col = _find_col(list(df.columns), ["date", "日期", "trade_date"])
+            close_col = _find_col(list(df.columns), ["close", "收盘", "收盘价"])
+            if date_col is None or close_col is None:
+                continue
+            out = df[[date_col, close_col]].copy()
+            out.columns = ["date", "close"]
+            out["date"] = _standardize_date(out["date"])
+            out["close"] = pd.to_numeric(out["close"], errors="coerce")
+            out = out.dropna().drop_duplicates("date", keep="last").sort_values("date")
+            start_dt, end_dt = pd.to_datetime(start), pd.to_datetime(end)
+            out = out[(out["date"] >= start_dt) & (out["date"] <= end_dt)]
+            if len(out) > 5:
+                print("Downloaded CSI 300 using akshare.")
+                return out
+        except Exception as e:
+            warnings.warn(f"akshare CSI 300 download failed with {fn.__name__}: {e}")
+    return None
+
+
+def _load_hs300_tushare(start: str, end: str) -> Optional[pd.DataFrame]:
+    token = os.environ.get("TUSHARE_TOKEN", "").strip()
+    if not token:
+        return None
+    try:
+        import tushare as ts
+        ts.set_token(token)
+        pro = ts.pro_api()
+        df = pro.index_daily(ts_code="000300.SH", start_date=start.replace("-", ""), end_date=end.replace("-", ""))
+        if df is None or df.empty:
+            return None
+        out = df[["trade_date", "close"]].copy()
+        out.columns = ["date", "close"]
+        out["date"] = pd.to_datetime(out["date"], format="%Y%m%d")
+        out["close"] = pd.to_numeric(out["close"], errors="coerce")
+        out = out.dropna().drop_duplicates("date", keep="last").sort_values("date")
+        print("Downloaded CSI 300 using tushare.")
+        return out
+    except Exception as e:
+        warnings.warn(f"Tushare CSI 300 download failed: {e}")
+        return None
+
+
+def hs300_account_curve(dates: pd.Series | List[pd.Timestamp]) -> Optional[pd.DataFrame]:
+    dates = pd.to_datetime(pd.Series(dates)).dt.normalize().dropna().drop_duplicates().sort_values()
+    if dates.empty:
+        return None
+    start = dates.min().strftime("%Y-%m-%d")
+    end = dates.max().strftime("%Y-%m-%d")
+
+    hs = _load_hs300_local()
+    if hs is None:
+        hs = _load_hs300_akshare(start, end)
+    if hs is None:
+        hs = _load_hs300_tushare(start, end)
+    if hs is None or hs.empty:
+        warnings.warn(
+            "CSI 300 data not available. Put hs300.csv / 000300.csv in DATA_DIR, "
+            "or install akshare, or set TUSHARE_TOKEN. The CSI 300 row and curve will be skipped."
+        )
+        return None
+
+    hs = hs.set_index("date").sort_index()[["close"]]
+    hs = hs.reindex(dates).ffill().bfill().dropna()
+    if hs.empty:
+        warnings.warn("CSI 300 has no overlapping dates with strategy curves.")
+        return None
+    account = INITIAL_CAPITAL * hs["close"] / hs["close"].iloc[0]
+    out = pd.DataFrame({"date": hs.index, "account_value": account.values})
+    out["daily_return"] = out["account_value"].pct_change().fillna(0.0)
+    return out
+
+# =========================
+# 3. Metrics / LaTeX
+# =========================
+
+def compute_metrics(curve: pd.DataFrame) -> Dict[str, float]:
+    df = curve.copy().sort_values("date")
+    df = df.dropna(subset=["date", "account_value"])
+    if len(df) < 2:
+        raise ValueError("Need at least two observations to compute metrics.")
+    acc = pd.to_numeric(df["account_value"], errors="coerce").dropna()
+    ret = acc.pct_change().fillna(0.0)
+    n = len(acc)
+    cr = acc.iloc[-1] / acc.iloc[0] - 1.0
+    ar = (acc.iloc[-1] / acc.iloc[0]) ** (TRADING_DAYS / max(n - 1, 1)) - 1.0
+    vol = ret.std(ddof=1) * np.sqrt(TRADING_DAYS) if n > 2 else np.nan
+    sr = (ar - RISK_FREE_RATE) / vol if vol and vol > 0 else np.nan
+    peak = acc.cummax()
+    dd = acc / peak - 1.0
+    mdd = dd.min()
+    calmar = ar / abs(mdd) if mdd < 0 else np.nan
+    downside = ret[ret < 0]
+    downside_vol = downside.std(ddof=1) * np.sqrt(TRADING_DAYS) if len(downside) > 1 else np.nan
+    sortino = (ar - RISK_FREE_RATE) / downside_vol if downside_vol and downside_vol > 0 else np.nan
+    return {
+        "CR": cr,
+        "AR": ar,
+        "SR": sr,
+        "MDD": mdd,
+        "Calmar": calmar,
+        "Sortino": sortino,
+        "Final value": float(acc.iloc[-1]),
+        "Start": df["date"].iloc[0].strftime("%Y-%m-%d"),
+        "End": df["date"].iloc[-1].strftime("%Y-%m-%d"),
+        "Obs": n,
+    }
+
+
+def fmt_num(x, digits=4):
+    if pd.isna(x):
+        return "--"
+    return f"{x:.{digits}f}"
+
+
+def fmt_int(x):
+    if pd.isna(x):
+        return "--"
+    return f"{int(round(x)):,}"
+
+
+def latex_table(df: pd.DataFrame, caption: str, label: str) -> str:
+    # Highlight best per metric. For MDD, the best value is the one closest to zero, i.e. max MDD.
+    metric_cols = ["CR", "AR", "SR", "MDD", "Calmar", "Sortino", "Final value"]
+    best = {}
+    for col in metric_cols:
+        s = pd.to_numeric(df[col], errors="coerce")
+        if s.notna().any():
+            best[col] = s.idxmax()  # for MDD, idxmax is closest to zero because MDD <= 0.
+        else:
+            best[col] = None
+
+    lines = []
+    lines.append(r"\begin{table*}[t]")
+    lines.append(r"\centering")
+    lines.append(rf"\caption{{{caption}}}")
+    lines.append(rf"\label{{{label}}}")
+    lines.append(r"\resizebox{\textwidth}{!}{")
+    lines.append(r"\begin{tabular}{lccccccc}")
+    lines.append(r"\toprule")
+    lines.append(r"Method & CR & AR & SR & MDD & Calmar & Sortino & Final value \\")
+    lines.append(r"\midrule")
+
+    for i, row in df.iterrows():
+        if i == 5:  # after five baseline DRL rows
+            lines.append(r"\midrule")
+        if row["Method"] == "Buy-and-Hold":
+            # Separate passive benchmarks from RL strategies.
+            lines.append(r"\midrule")
+        vals = []
+        for col in metric_cols:
+            val = fmt_int(row[col]) if col == "Final value" else fmt_num(row[col])
+            if best.get(col) == i:
+                val = rf"\textbf{{{val}}}"
+            vals.append(val)
+        lines.append(f"{row['Method']} & " + " & ".join(vals) + r" \\")
+    lines.append(r"\bottomrule")
+    lines.append(r"\end{tabular}")
+    lines.append(r"}")
+    lines.append(r"\vspace{1mm}")
+    lines.append(
+        r"\parbox{\textwidth}{\footnotesize Note: The table is computed from strategy account-value files "
+        r"and benchmark curves generated from the 15-stock observed close-price panel over the same evaluation dates. "
+        r"CR, AR, SR, MDD, Calmar, and Sortino denote cumulative return, annualized return, Sharpe ratio, maximum drawdown, "
+        r"Calmar ratio, and Sortino ratio, respectively. AR is annualized using 252 trading days and final value assumes an initial capital of 1,000,000. "
+        r"For MDD, a value closer to zero indicates a smaller drawdown.}"
+    )
+    lines.append(r"\end{table*}")
+    return "\n".join(lines)
+
+# =========================
+# 4. Curves and plotting
+# =========================
+
+def build_sector_curves(cfg: Dict) -> Dict[str, pd.DataFrame]:
+    curves: Dict[str, pd.DataFrame] = {}
+
+    for agent in AGENTS:
+        name = AGENT_LABEL[agent]
+        f = STRATEGY_DIR / f"{cfg['baseline_prefix']}{agent}.csv"
+        curves[name] = _load_account_csv(f)
+
+    for agent in AGENTS:
+        name = "MGT-" + AGENT_LABEL[agent]
+        f = STRATEGY_DIR / f"{cfg['mgt_prefix']}{agent}.csv"
+        curves[name] = _load_account_csv(f)
+
+    # Filter to article period first.
+    start_dt, end_dt = pd.to_datetime(EVAL_START), pd.to_datetime(EVAL_END)
+    for k, v in list(curves.items()):
+        v = v[(v["date"] >= start_dt) & (v["date"] <= end_dt)].copy()
+        if v.empty:
+            raise ValueError(f"No dates left after filtering {k} to {EVAL_START}--{EVAL_END}")
+        curves[k] = v
+
+    # Align dates to the common strategy date grid.
+    if ALIGN_TO_STRATEGY_DATES:
+        common_dates = None
+        for v in curves.values():
+            ds = set(pd.to_datetime(v["date"]).dt.normalize())
+            common_dates = ds if common_dates is None else common_dates.intersection(ds)
+        common_dates = sorted(common_dates)
+        if len(common_dates) < 2:
+            raise ValueError("Too few common dates among strategy result files.")
+        print(f"Common strategy dates: {common_dates[0].date()} to {common_dates[-1].date()}, n={len(common_dates)}")
+        for k, v in list(curves.items()):
+            v = v[v["date"].isin(common_dates)].copy().sort_values("date")
+            # Re-normalize each curve to INITIAL_CAPITAL on the first common date.
+            v["account_value"] = INITIAL_CAPITAL * v["account_value"] / v["account_value"].iloc[0]
+            v["daily_return"] = v["account_value"].pct_change().fillna(0.0)
+            curves[k] = v
+        eval_dates = pd.to_datetime(pd.Series(common_dates))
+    else:
+        eval_dates = pd.date_range(EVAL_START, EVAL_END, freq="D")
+
+    panel = _load_price_panel(cfg["price_file"])
+    curves["Buy-and-Hold"] = buy_and_hold_equal_initial(panel, eval_dates)
+    curves["Equal Weight"] = equal_weight_rebalanced(panel, eval_dates)
+
+    hs = hs300_account_curve(eval_dates)
+    if hs is not None:
+        curves["CSI 300"] = hs
+
+    # Ensure every curve is on the same date grid and normalized.
+    final_dates = sorted(set(eval_dates).intersection(*[set(pd.to_datetime(v["date"]).dt.normalize()) for v in curves.values()]))
+    if len(final_dates) < 2:
+        warnings.warn("Cannot find common dates for all curves including CSI 300; using strategy dates and allowing missing benchmark points.")
+        final_dates = list(eval_dates)
+    for k, v in list(curves.items()):
+        v = v.set_index("date").sort_index().reindex(final_dates).ffill().bfill().reset_index().rename(columns={"index": "date"})
+        v["account_value"] = INITIAL_CAPITAL * v["account_value"] / v["account_value"].iloc[0]
+        v["daily_return"] = v["account_value"].pct_change().fillna(0.0)
+        curves[k] = v
+    return curves
+
+
+def sector_table_from_curves(curves: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    order = ["PPO", "A2C", "SAC", "TD3", "DDPG", "MGT-PPO", "MGT-A2C", "MGT-SAC", "MGT-TD3", "MGT-DDPG", "Buy-and-Hold", "Equal Weight", "CSI 300"]
+    rows = []
+    for method in order:
+        if method not in curves:
+            continue
+        met = compute_metrics(curves[method])
+        met["Method"] = method
+        rows.append(met)
+    return pd.DataFrame(rows)[["Method", "CR", "AR", "SR", "MDD", "Calmar", "Sortino", "Final value", "Start", "End", "Obs"]]
+
+
+def plot_account_curves(curves: Dict[str, pd.DataFrame], sector_name: str, stem: str) -> None:
+    plt.rcParams.update({
+        "font.family": "Times New Roman",
+        "font.size": 10,
+        "axes.linewidth": 0.8,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "pdf.fonttype": 42,
+        "ps.fonttype": 42,
+        "svg.fonttype": "none",
+    })
+    order = ["PPO", "A2C", "SAC", "TD3", "DDPG", "MGT-PPO", "MGT-A2C", "MGT-SAC", "MGT-TD3", "MGT-DDPG", "Buy-and-Hold", "Equal Weight", "CSI 300"]
+    fig, ax = plt.subplots(figsize=(9.2, 4.8))
+
+    for name in order:
+        if name not in curves:
+            continue
+        df = curves[name]
+        lw = 2.2 if name.startswith("MGT") else 1.4
+        if name in ["Buy-and-Hold", "Equal Weight", "CSI 300"]:
+            lw = 2.0
+        alpha = 0.95 if name.startswith("MGT") or name in ["Buy-and-Hold", "Equal Weight", "CSI 300"] else 0.72
+        ax.plot(
+            df["date"],
+            df["account_value"] / 1_000_000,
+            label=name,
+            color=PALETTE.get(name, None),
+            linestyle=LINESTYLE.get(name, "-"),
+            linewidth=lw,
+            alpha=alpha,
+        )
+
+    ax.set_title(f"Account value curves on the {sector_name}", fontsize=12, pad=10)
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Account value (million)")
+    ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.25)
+    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
+    plt.setp(ax.get_xticklabels(), rotation=35, ha="right")
+    ax.legend(ncol=3, frameon=False, fontsize=8.8, loc="best")
+    fig.tight_layout()
+
+    for ext in ["svg", "pdf", "png"]:
+        fig.savefig(FIG_DIR / f"{stem}.{ext}", dpi=600, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_drawdown_curves(curves: Dict[str, pd.DataFrame], sector_name: str, stem: str) -> None:
+    plt.rcParams.update({
+        "font.family": "Times New Roman",
+        "font.size": 10,
+        "axes.linewidth": 0.8,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "pdf.fonttype": 42,
+        "ps.fonttype": 42,
+        "svg.fonttype": "none",
+    })
+    order = ["PPO", "A2C", "SAC", "TD3", "DDPG", "MGT-PPO", "MGT-A2C", "MGT-SAC", "MGT-TD3", "MGT-DDPG", "Buy-and-Hold", "Equal Weight", "CSI 300"]
+    fig, ax = plt.subplots(figsize=(9.2, 4.2))
+    for name in order:
+        if name not in curves:
+            continue
+        df = curves[name].copy()
+        acc = df["account_value"]
+        dd = acc / acc.cummax() - 1.0
+        lw = 2.0 if name.startswith("MGT") or name in ["Buy-and-Hold", "Equal Weight", "CSI 300"] else 1.2
+        ax.plot(df["date"], dd * 100, label=name, color=PALETTE.get(name, None), linestyle=LINESTYLE.get(name, "-"), linewidth=lw, alpha=0.9)
+    ax.set_title(f"Drawdown curves on the {sector_name}", fontsize=12, pad=10)
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Drawdown (%)")
+    ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.25)
+    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
+    plt.setp(ax.get_xticklabels(), rotation=35, ha="right")
+    ax.legend(ncol=3, frameon=False, fontsize=8.8, loc="lower left")
+    fig.tight_layout()
+    for ext in ["svg", "pdf", "png"]:
+        fig.savefig(FIG_DIR / f"{stem}_drawdown.{ext}", dpi=600, bbox_inches="tight")
+    plt.close(fig)
+
+# =========================
+# 5. Main
+# =========================
+
+def run_all() -> None:
+    all_tables = {}
+    latex_blocks = []
+    for key, cfg in SECTORS.items():
+        print(f"\n===== Processing {cfg['sector_name']} =====")
+        curves = build_sector_curves(cfg)
+        table = sector_table_from_curves(curves)
+        all_tables[key] = table
+
+        csv_path = TABLE_DIR / f"table_final_{key}_with_benchmarks.csv"
+        tex_path = TABLE_DIR / f"table_final_{key}_with_benchmarks.tex"
+        table.to_csv(csv_path, index=False, encoding="utf-8-sig")
+
+        tex = latex_table(table, cfg["table_caption"], cfg["table_label"])
+        tex_path.write_text(tex, encoding="utf-8")
+        latex_blocks.append(tex)
+
+        plot_account_curves(curves, cfg["sector_name"], cfg["figure_stem"])
+        plot_drawdown_curves(curves, cfg["sector_name"], cfg["figure_stem"])
+
+        # Save every curve for reproducibility.
+        curve_dir = OUT_DIR / "curves" / key
+        curve_dir.mkdir(parents=True, exist_ok=True)
+        for name, curve in curves.items():
+            safe = name.replace(" ", "_").replace("-", "_")
+            curve.to_csv(curve_dir / f"{safe}_account_curve.csv", index=False, encoding="utf-8-sig")
+
+        print(table[["Method", "CR", "AR", "SR", "MDD", "Calmar", "Sortino", "Final value"]])
+        print(f"Saved: {csv_path}")
+        print(f"Saved: {tex_path}")
+        print(f"Saved figures: {FIG_DIR / (cfg['figure_stem'] + '.svg')} and .pdf/.png")
+
+    combined_tex = "\n\n".join(latex_blocks)
+    (TABLE_DIR / "tables_final_bank_healthcare_with_benchmarks.tex").write_text(combined_tex, encoding="utf-8")
+    print("\nAll done.")
+    print(f"Combined LaTeX: {TABLE_DIR / 'tables_final_bank_healthcare_with_benchmarks.tex'}")
+
+
+if __name__ == "__main__":
+    run_all()

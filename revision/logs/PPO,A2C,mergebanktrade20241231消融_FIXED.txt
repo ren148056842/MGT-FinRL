@@ -1,0 +1,978 @@
+CELL 0
+# MGT-FinRL：Forecast-to-Policy 消融实验修正版
+
+本 notebook 与第一个预测消融 notebook 对应，用于完成 **RL 投资策略层面的消融实验**。
+
+核心目的：
+
+1. 固定同一个 RL agent，例如 A2C，比较不同预测信号对投资策略的影响；
+2. 验证提升是否来自 MGT 的 forecast-driven state，而不是来自 PPO/A2C/SAC/TD3/DDPG 本身；
+3. 生成 Applied Intelligence 论文中可直接使用的 `Forecast-to-policy ablation` 表格。
+
+对应第一个 notebook 的模型编号：
+
+- `A0_Full_MGT`
+- `A1_Transformer_only`
+- `A2_MGNN_only`
+- `A3_SH_only`
+- `A4_QA_only`
+- `A5_KD_only`
+- `A6_SH_QA`
+- `A7_SH_KD`
+- `A8_QA_KD`
+- `A9_Fixed_fusion`
+
+注意：本 notebook 需要每个消融版本都有一个 **FinRL 可读取的长表 CSV**，至少包含 `date, tic, open, high, low, close, volume` 等字段。
+CELL 1
+# ===============================
+# 0. Basic imports and global paths
+# ===============================
+
+import os
+import random
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+# FinRL / SB3 imports
+from finrl.meta.preprocessor.preprocessors import FeatureEngineer, data_split
+from finrl.agents.stablebaselines3.models import DRLAgent
+
+import gym
+from gym import spaces
+from gym.utils import seeding
+from stable_baselines3.common.vec_env import DummyVecEnv
+
+# -------------------------------
+# Project paths
+# -------------------------------
+PROJECT_ROOT = Path("D:/paper/onging")
+GRAPH_DATA_DIR = PROJECT_ROOT / "data" / "graph"
+ABLATION_ROOT = PROJECT_ROOT / "ablation"
+RL_ABLATION_DIR = ABLATION_ROOT / "rl"
+
+RL_ABLATION_DIR.mkdir(parents=True, exist_ok=True)
+
+# 原始 Full MGT-FinRL 使用的数据
+BASE_FULL_MGT_CSV = GRAPH_DATA_DIR / "banktrademergeGNNtr20241231.CSV"
+
+print("RL_ABLATION_DIR =", RL_ABLATION_DIR)
+print("BASE_FULL_MGT_CSV =", BASE_FULL_MGT_CSV)
+
+CELL 2
+## 1. 与第一个预测消融 notebook 对应的输入文件配置
+
+下面的 `RL_ABLATION_INPUTS` 与第一个 notebook 的 `ABLATION_CONFIGS` 一一对应。
+
+如果你还没有生成某个版本的 FinRL 长表 CSV，程序会自动跳过该版本，不会中断运行。
+
+建议文件命名方式：
+
+```text
+D:/paper/onging/data/graph/banktrademergeGNNtr20241231_A0_Full_MGT.CSV
+D:/paper/onging/data/graph/banktrademergeGNNtr20241231_A1_Transformer_only.CSV
+...
+```
+
+如果当前只有原始 `banktrademergeGNNtr20241231.CSV`，那么默认只会运行 `A0_Full_MGT`。
+CELL 3
+# ===============================
+# 1. Ablation input mapping
+# ===============================
+
+RL_ABLATION_INPUTS = {
+    # Full MGT: 兼容你原来的文件名
+    "A0_Full_MGT": BASE_FULL_MGT_CSV,
+
+    # 以下文件需要你根据第一个预测消融 notebook 的输出进一步合并生成
+    "A1_Transformer_only": GRAPH_DATA_DIR / "banktrademergeGNNtr20241231_A1_Transformer_only.CSV",
+    "A2_MGNN_only": GRAPH_DATA_DIR / "banktrademergeGNNtr20241231_A2_MGNN_only.CSV",
+    "A3_SH_only": GRAPH_DATA_DIR / "banktrademergeGNNtr20241231_A3_SH_only.CSV",
+    "A4_QA_only": GRAPH_DATA_DIR / "banktrademergeGNNtr20241231_A4_QA_only.CSV",
+    "A5_KD_only": GRAPH_DATA_DIR / "banktrademergeGNNtr20241231_A5_KD_only.CSV",
+    "A6_SH_QA": GRAPH_DATA_DIR / "banktrademergeGNNtr20241231_A6_SH_QA.CSV",
+    "A7_SH_KD": GRAPH_DATA_DIR / "banktrademergeGNNtr20241231_A7_SH_KD.CSV",
+    "A8_QA_KD": GRAPH_DATA_DIR / "banktrademergeGNNtr20241231_A8_QA_KD.CSV",
+    "A9_Fixed_fusion": GRAPH_DATA_DIR / "banktrademergeGNNtr20241231_A9_Fixed_fusion.CSV",
+}
+
+print("Available ablation CSV files:")
+for tag, path in RL_ABLATION_INPUTS.items():
+    print(f"{tag:28s} -> {path} | exists={Path(path).exists()}")
+
+CELL 4
+## 2. 实验设置
+
+主文建议采用：
+
+- 初始资金：`1,000,000`
+- 交易成本：`0.0001`，即万分之一
+- 交易区间：`2023-01-03` 到 `2024-12-31`
+- 消融实验固定一个 RL agent，例如 `A2C`
+- 完整策略比较再跑 PPO/A2C/SAC/TD3/DDPG
+
+为了先跑通代码，默认只用 `SEEDS = [1]`。论文最终结果建议改成 `SEEDS = [1, 2, 3]`。
+CELL 5
+# ===============================
+# 2. Experiment settings
+# ===============================
+
+TRAIN_START = "2018-01-02"
+TRAIN_END   = "2022-12-31"
+TRADE_START = "2023-01-03"
+TRADE_END   = "2024-12-31"
+
+INITIAL_AMOUNT = 1_000_000
+TRANSACTION_COST_PCT = 0.0001   # 万分之一交易成本
+REWARD_SCALING = 1e-1
+LOOKBACK = 252
+
+TECH_INDICATOR_LIST = ["macd", "rsi_30", "cci_30", "dx_30"]
+
+# 消融实验建议固定一个 agent，避免计算量过大
+AGENTS_FOR_ABLATION = ["a2c"]
+
+# 调试阶段用 [1]；论文最终表格建议用 [1, 2, 3]
+SEEDS = [1]
+
+# 主文优先跑这些版本；如果 CSV 不存在会自动跳过
+VARIANTS_TO_RUN = [
+    "A0_Full_MGT",
+    "A1_Transformer_only",
+    "A2_MGNN_only",
+    "A3_SH_only",
+    "A4_QA_only",
+    "A5_KD_only",
+    "A9_Fixed_fusion",
+]
+
+# 训练步数。若需要加快调试，可临时把 A2C 改成 5000 或 10000。
+TOTAL_TIMESTEPS = {
+    "a2c": 40000,
+    "ppo": 40000,
+    "sac": 60000,
+    "td3": 30000,
+    "ddpg": 50000,
+}
+
+MODEL_PARAMS = {
+    "a2c": {"n_steps": 10, "ent_coef": 0.005, "learning_rate": 0.0004},
+    "ppo": {"n_steps": 2048, "ent_coef": 0.005, "learning_rate": 0.001, "batch_size": 128},
+    "sac": {"batch_size": 128, "buffer_size": 1_000_000, "learning_rate": 0.0001,
+            "learning_starts": 100, "ent_coef": "auto_0.1"},
+    "td3": {"batch_size": 100, "buffer_size": 1_000_000, "learning_rate": 0.001},
+    "ddpg": {},
+}
+
+def set_global_seed(seed: int = 1):
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+
+set_global_seed(1)
+
+CELL 6
+## 3. 数据读取与协方差状态构造
+
+这部分替代原 notebook 中重复的 `FeatureEngineer` 和重复的 covariance 代码。
+
+修正点：
+
+1. 不再重复调用 `fe.preprocess_data(df)`；
+2. 如果技术指标已经存在，则不重复生成；
+3. 每次重新计算 `cov_list`，避免从 CSV 读取后变成字符串；
+4. 训练集和交易集都会重新设置整数 day index，保证环境中的 `df.loc[self.day, :]` 正常工作。
+CELL 7
+# ===============================
+# 3. Data preprocessing
+# ===============================
+
+def _reset_day_index(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.sort_values(["date", "tic"]).copy()
+    df.index = pd.factorize(df["date"])[0]
+    return df
+
+def _check_required_columns(df: pd.DataFrame, csv_path: Path):
+    required = {"date", "tic", "close"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"{csv_path} 缺少必要字段: {missing}")
+
+def load_finrl_data(csv_path, lookback=252, tech_indicator_list=None):
+    """
+    读取 FinRL 长表 CSV，并生成技术指标和 rolling covariance state。
+
+    输入 CSV 至少应包含:
+    date, tic, open, high, low, close, volume
+
+    返回:
+    df with columns: date, tic, OHLCV, technical indicators, cov_list, return_list
+    """
+    csv_path = Path(csv_path)
+    if not csv_path.exists():
+        raise FileNotFoundError(f"找不到数据文件: {csv_path}")
+
+    df = pd.read_csv(csv_path)
+    _check_required_columns(df, csv_path)
+
+    df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+    df = df.sort_values(["date", "tic"]).reset_index(drop=True)
+
+    if tech_indicator_list is None:
+        tech_indicator_list = TECH_INDICATOR_LIST
+
+    # 如果技术指标缺失，则调用 FeatureEngineer
+    missing_tech = [c for c in tech_indicator_list if c not in df.columns]
+    if missing_tech:
+        print(f"[{csv_path.name}] Missing technical indicators {missing_tech}; running FeatureEngineer...")
+        fe = FeatureEngineer(
+            use_technical_indicator=True,
+            use_turbulence=False,
+            user_defined_feature=False
+        )
+        df = fe.preprocess_data(df)
+        df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+    else:
+        print(f"[{csv_path.name}] Technical indicators already exist; skip FeatureEngineer.")
+
+    # 避免从 CSV 读取旧 cov_list/return_list 后变成字符串
+    for col in ["cov_list", "return_list"]:
+        if col in df.columns:
+            df = df.drop(columns=[col])
+
+    df = df.sort_values(["date", "tic"], ignore_index=True)
+    df.index = pd.factorize(df["date"])[0]
+
+    unique_dates = df["date"].unique()
+    if len(unique_dates) <= lookback:
+        raise ValueError(f"数据交易日数量 {len(unique_dates)} 小于等于 lookback={lookback}，无法构造协方差状态。")
+
+    cov_list = []
+    return_list = []
+
+    for i in range(lookback, len(unique_dates)):
+        data_lookback = df.loc[i - lookback:i, :]
+        price_lookback = data_lookback.pivot_table(index="date", columns="tic", values="close")
+        return_lookback = price_lookback.pct_change().dropna()
+
+        return_list.append(return_lookback)
+        cov_list.append(return_lookback.cov().values)
+
+    df_cov = pd.DataFrame({
+        "date": unique_dates[lookback:],
+        "cov_list": cov_list,
+        "return_list": return_list
+    })
+
+    df = df.reset_index(drop=True)
+    df = df.merge(df_cov, on="date", how="inner")
+    df = df.sort_values(["date", "tic"]).reset_index(drop=True)
+
+    return df
+
+def make_train_trade(df: pd.DataFrame):
+    train = data_split(df, TRAIN_START, TRAIN_END)
+    trade = data_split(df, TRADE_START, TRADE_END)
+
+    train = _reset_day_index(train)
+    trade = _reset_day_index(trade)
+
+    return train, trade
+
+CELL 8
+## 4. 修正版 Portfolio Allocation Environment
+
+相对于原 notebook，主要修正：
+
+1. `transaction_cost_pct` 不再是 0，默认使用万分之一；
+2. 在 `step()` 中显式计算 turnover 和 transaction cost；
+3. 保存 `turnover_memory` 和 `cost_memory`；
+4. reward 使用 `portfolio_return * reward_scaling`，避免直接用账户净值导致奖励尺度过大；
+5. `save_asset_memory()` 输出 daily return 和 account value。
+CELL 9
+# ===============================
+# 4. Portfolio allocation environment with transaction cost
+# ===============================
+
+class StockPortfolioEnv(gym.Env):
+    metadata = {"render.modes": ["human"]}
+
+    def __init__(
+        self,
+        df,
+        stock_dim,
+        hmax,
+        initial_amount,
+        transaction_cost_pct,
+        reward_scaling,
+        state_space,
+        action_space,
+        tech_indicator_list,
+        turbulence_threshold=None,
+        lookback=252,
+        day=0,
+    ):
+        self.day = day
+        self.lookback = lookback
+        self.df = df
+        self.stock_dim = stock_dim
+        self.hmax = hmax
+        self.initial_amount = initial_amount
+        self.transaction_cost_pct = transaction_cost_pct
+        self.reward_scaling = reward_scaling
+        self.state_space = state_space
+        self.action_space_dim = action_space
+        self.tech_indicator_list = tech_indicator_list
+        self.turbulence_threshold = turbulence_threshold
+
+        self.action_space = spaces.Box(low=0, high=1, shape=(self.action_space_dim,))
+        self.observation_space = spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(self.state_space + len(self.tech_indicator_list), self.state_space),
+        )
+
+        self.data = self.df.loc[self.day, :]
+        self.covs = self.data["cov_list"].values[0]
+        self.state = np.append(
+            np.array(self.covs),
+            [self.data[tech].values.tolist() for tech in self.tech_indicator_list],
+            axis=0,
+        )
+
+        self.terminal = False
+        self.portfolio_value = self.initial_amount
+        self.reward = 0.0
+
+        self.asset_memory = [self.initial_amount]
+        self.portfolio_return_memory = [0.0]
+        self.actions_memory = [[1 / self.stock_dim] * self.stock_dim]
+        self.turnover_memory = [0.0]
+        self.cost_memory = [0.0]
+        self.date_memory = [self.data.date.unique()[0]]
+
+    def step(self, actions):
+        self.terminal = self.day >= len(self.df.index.unique()) - 1
+
+        if self.terminal:
+            return self.state, self.reward, self.terminal, {}
+
+        # 当前动作 -> long-only simplex 权重
+        weights = self.softmax_normalization(actions)
+        prev_weights = np.array(self.actions_memory[-1], dtype=float)
+
+        # 当前日价格记忆
+        last_day_memory = self.data
+
+        # 进入下一交易日
+        self.day += 1
+        self.data = self.df.loc[self.day, :]
+
+        self.covs = self.data["cov_list"].values[0]
+        self.state = np.append(
+            np.array(self.covs),
+            [self.data[tech].values.tolist() for tech in self.tech_indicator_list],
+            axis=0,
+        )
+
+        # 组合收益、换手率和交易成本
+        price_relative = self.data.close.values / last_day_memory.close.values
+        gross_return = float(np.sum((price_relative - 1.0) * weights))
+
+        turnover = float(np.sum(np.abs(weights - prev_weights)))
+        cost = float(self.transaction_cost_pct * turnover)
+
+        portfolio_return = gross_return - cost
+
+        # 更新账户
+        new_portfolio_value = self.portfolio_value * (1.0 + portfolio_return)
+        self.portfolio_value = new_portfolio_value
+
+        # 保存轨迹
+        self.actions_memory.append(weights)
+        self.turnover_memory.append(turnover)
+        self.cost_memory.append(cost)
+        self.portfolio_return_memory.append(portfolio_return)
+        self.asset_memory.append(new_portfolio_value)
+        self.date_memory.append(self.data.date.unique()[0])
+
+        # 使用收益率作为 reward，避免账户值尺度过大
+        self.reward = portfolio_return * self.reward_scaling
+
+        return self.state, self.reward, self.terminal, {}
+
+    def reset(self):
+        self.asset_memory = [self.initial_amount]
+        self.day = 0
+        self.data = self.df.loc[self.day, :]
+
+        self.covs = self.data["cov_list"].values[0]
+        self.state = np.append(
+            np.array(self.covs),
+            [self.data[tech].values.tolist() for tech in self.tech_indicator_list],
+            axis=0,
+        )
+
+        self.portfolio_value = self.initial_amount
+        self.reward = 0.0
+        self.terminal = False
+        self.portfolio_return_memory = [0.0]
+        self.actions_memory = [[1 / self.stock_dim] * self.stock_dim]
+        self.turnover_memory = [0.0]
+        self.cost_memory = [0.0]
+        self.date_memory = [self.data.date.unique()[0]]
+
+        return self.state
+
+    def render(self, mode="human"):
+        return self.state
+
+    def softmax_normalization(self, actions):
+        actions = np.array(actions, dtype=float)
+        actions = actions - np.max(actions)
+        numerator = np.exp(actions)
+        denominator = np.sum(numerator)
+        return numerator / denominator
+
+    def save_asset_memory(self):
+        return pd.DataFrame({
+            "date": self.date_memory,
+            "daily_return": self.portfolio_return_memory,
+            "account_value": self.asset_memory,
+            "turnover": self.turnover_memory,
+            "transaction_cost": self.cost_memory,
+        })
+
+    def save_action_memory(self):
+        df_date = pd.DataFrame(self.date_memory, columns=["date"])
+        df_actions = pd.DataFrame(self.actions_memory)
+        df_actions.columns = self.data.tic.values
+        df_actions.index = df_date.date
+        return df_actions
+
+    def _seed(self, seed=None):
+        self.np_random, seed = seeding.np_random(seed)
+        return [seed]
+
+    def get_sb_env(self):
+        e = DummyVecEnv([lambda: self])
+        obs = e.reset()
+        return e, obs
+
+CELL 10
+## 5. 评价指标
+
+输出指标包括：
+
+- CR：累计收益率
+- AR：年化收益率
+- Vol：年化波动率
+- SR：Sharpe ratio
+- MDD：最大回撤
+- Calmar：Calmar ratio
+- Sortino：Sortino ratio
+- Omega：Omega ratio
+- Turnover：平均换手率
+- FinalAccountValue：期末账户价值
+CELL 11
+# ===============================
+# 5. Metrics
+# ===============================
+
+def calculate_portfolio_metrics(df_daily_return: pd.DataFrame, df_actions: pd.DataFrame = None):
+    r = df_daily_return["daily_return"].astype(float).values
+
+    if len(r) == 0:
+        raise ValueError("daily_return is empty.")
+
+    cumulative_return = float(np.prod(1.0 + r) - 1.0)
+    annual_return = float((1.0 + cumulative_return) ** (252 / max(len(r), 1)) - 1.0)
+    annual_vol = float(np.std(r, ddof=1) * np.sqrt(252)) if len(r) > 1 else np.nan
+
+    sharpe = annual_return / annual_vol if annual_vol and annual_vol != 0 else np.nan
+
+    cumulative_curve = np.cumprod(1.0 + r)
+    running_max = np.maximum.accumulate(cumulative_curve)
+    drawdown = cumulative_curve / running_max - 1.0
+    mdd = float(np.min(drawdown))
+
+    calmar = annual_return / abs(mdd) if mdd != 0 else np.nan
+
+    downside = r[r < 0]
+    downside_vol = float(np.std(downside, ddof=1) * np.sqrt(252)) if len(downside) > 1 else np.nan
+    sortino = annual_return / downside_vol if downside_vol and downside_vol != 0 else np.nan
+
+    pos_sum = float(np.sum(r[r > 0]))
+    neg_sum = float(abs(np.sum(r[r < 0])))
+    omega = pos_sum / neg_sum if neg_sum != 0 else np.inf
+
+    if "account_value" in df_daily_return.columns:
+        final_account_value = float(df_daily_return["account_value"].iloc[-1])
+    else:
+        final_account_value = float(cumulative_curve[-1])
+
+    if "turnover" in df_daily_return.columns:
+        turnover = float(df_daily_return["turnover"].mean())
+    elif df_actions is not None:
+        turnover = float(df_actions.diff().abs().sum(axis=1).mean())
+    else:
+        turnover = np.nan
+
+    return {
+        "CR": cumulative_return,
+        "AR": annual_return,
+        "Vol": annual_vol,
+        "SR": sharpe,
+        "MDD": mdd,
+        "Calmar": calmar,
+        "Sortino": sortino,
+        "Omega": omega,
+        "Turnover": turnover,
+        "FinalAccountValue": final_account_value,
+    }
+
+CELL 12
+## 6. 传统投资基准
+
+这部分用于回应审稿人“缺少 objective investment baselines”的问题。
+
+默认生成：
+
+1. `EqualWeight_Rebalanced`：每日等权再平衡；
+2. `BuyHold_EqualInitial`：初始等权买入并持有。
+CELL 13
+# ===============================
+# 6. Objective investment baselines
+# ===============================
+
+def equal_weight_rebalanced_baseline(trade_df: pd.DataFrame):
+    price = trade_df.pivot_table(index="date", columns="tic", values="close").sort_index()
+    asset_ret = price.pct_change().fillna(0.0)
+    daily_ret = asset_ret.mean(axis=1)
+
+    df_ret = pd.DataFrame({
+        "date": daily_ret.index,
+        "daily_return": daily_ret.values,
+    })
+    df_ret["account_value"] = INITIAL_AMOUNT * (1.0 + df_ret["daily_return"]).cumprod()
+    return df_ret
+
+def buy_and_hold_equal_initial_baseline(trade_df: pd.DataFrame):
+    price = trade_df.pivot_table(index="date", columns="tic", values="close").sort_index()
+    rel_price = price / price.iloc[0]
+    portfolio_curve = rel_price.mean(axis=1)
+    daily_ret = portfolio_curve.pct_change().fillna(0.0)
+
+    df_ret = pd.DataFrame({
+        "date": daily_ret.index,
+        "daily_return": daily_ret.values,
+    })
+    df_ret["account_value"] = INITIAL_AMOUNT * (1.0 + df_ret["daily_return"]).cumprod()
+    return df_ret
+
+def run_objective_baselines(trade_df: pd.DataFrame, tag: str):
+    rows = []
+
+    baselines = {
+        "EqualWeight_Rebalanced": equal_weight_rebalanced_baseline(trade_df),
+        "BuyHold_EqualInitial": buy_and_hold_equal_initial_baseline(trade_df),
+    }
+
+    for name, df_ret in baselines.items():
+        out_path = RL_ABLATION_DIR / f"{tag}_{name}_daily_return.csv"
+        df_ret.to_csv(out_path, index=False)
+
+        metrics = calculate_portfolio_metrics(df_ret)
+        metrics.update({
+            "variant": tag,
+            "agent": name,
+            "seed": -1,
+            "csv_path": "",
+        })
+        rows.append(metrics)
+
+    return rows
+
+CELL 14
+## 7. 单个 RL 消融实验函数
+
+这部分是主函数。
+
+输入一个 FinRL 长表 CSV，训练指定 RL agent，并输出：
+
+- daily return CSV
+- action/weight CSV
+- 单次实验指标字典
+CELL 15
+# ===============================
+# 7. Run one RL experiment
+# ===============================
+
+def build_env_kwargs(train_df: pd.DataFrame):
+    stock_dimension = len(train_df.tic.unique())
+    state_space = stock_dimension
+
+    env_kwargs = {
+        "hmax": 100,
+        "initial_amount": INITIAL_AMOUNT,
+        "transaction_cost_pct": TRANSACTION_COST_PCT,
+        "state_space": state_space,
+        "stock_dim": stock_dimension,
+        "tech_indicator_list": TECH_INDICATOR_LIST,
+        "action_space": stock_dimension,
+        "reward_scaling": REWARD_SCALING,
+    }
+    return env_kwargs
+
+def train_and_trade_one_agent(csv_path, variant_tag, agent_name="a2c", seed=1):
+    set_global_seed(seed)
+    csv_path = Path(csv_path)
+
+    print(f"\n========== {variant_tag} | {agent_name.upper()} | seed={seed} ==========")
+    print("CSV:", csv_path)
+
+    df = load_finrl_data(csv_path, lookback=LOOKBACK, tech_indicator_list=TECH_INDICATOR_LIST)
+    train, trade = make_train_trade(df)
+
+    if train.empty:
+        raise ValueError(f"{variant_tag}: train 数据为空，请检查日期范围 {TRAIN_START} 到 {TRAIN_END}")
+    if trade.empty:
+        raise ValueError(f"{variant_tag}: trade 数据为空，请检查日期范围 {TRADE_START} 到 {TRADE_END}")
+
+    env_kwargs = build_env_kwargs(train)
+
+    e_train_gym = StockPortfolioEnv(df=train, **env_kwargs)
+    env_train, _ = e_train_gym.get_sb_env()
+
+    agent = DRLAgent(env=env_train)
+
+    params = MODEL_PARAMS.get(agent_name, {}).copy()
+    # Stable-Baselines3 大多数算法支持 seed 参数
+    params["seed"] = seed
+
+    model = agent.get_model(model_name=agent_name, model_kwargs=params)
+    trained_model = agent.train_model(
+        model=model,
+        tb_log_name=f"{variant_tag}_{agent_name}_seed{seed}",
+        total_timesteps=TOTAL_TIMESTEPS[agent_name],
+    )
+
+    e_trade_gym = StockPortfolioEnv(df=trade, **env_kwargs)
+
+    df_daily_return, df_actions = DRLAgent.DRL_prediction(
+        model=trained_model,
+        environment=e_trade_gym,
+    )
+
+    # 有些 FinRL 版本返回的 df_daily_return 不包含 account_value/turnover，
+    # 这里直接从 environment memory 重新取一次，保证指标完整。
+    try:
+        df_daily_return = e_trade_gym.save_asset_memory()
+        df_actions = e_trade_gym.save_action_memory()
+    except Exception as e:
+        print("Warning: cannot recover full memory from environment:", e)
+
+    metrics = calculate_portfolio_metrics(df_daily_return, df_actions)
+    metrics.update({
+        "variant": variant_tag,
+        "agent": agent_name,
+        "seed": seed,
+        "csv_path": str(csv_path),
+    })
+
+    # Save outputs
+    daily_path = RL_ABLATION_DIR / f"{variant_tag}_{agent_name}_seed{seed}_daily_return.csv"
+    action_path = RL_ABLATION_DIR / f"{variant_tag}_{agent_name}_seed{seed}_actions.csv"
+
+    df_daily_return.to_csv(daily_path, index=False)
+    df_actions.to_csv(action_path)
+
+    print("Saved:", daily_path)
+    print("Saved:", action_path)
+    print(metrics)
+
+    return metrics
+
+CELL 16
+## 8. 批量运行 forecast-to-policy 消融实验
+
+默认只运行 `VARIANTS_TO_RUN` 中存在 CSV 的版本。
+
+如果某个 CSV 不存在，会显示 `[SKIP]`，不会报错。
+CELL 17
+# ===============================
+# 8. Batch run RL ablation
+# ===============================
+
+all_metrics = []
+
+for variant_tag in VARIANTS_TO_RUN:
+    csv_path = RL_ABLATION_INPUTS[variant_tag]
+
+    if not Path(csv_path).exists():
+        print(f"[SKIP] {variant_tag}: file not found -> {csv_path}")
+        continue
+
+    # 对每个存在的版本，先加两个客观投资基准
+    try:
+        df_for_baseline = load_finrl_data(csv_path, lookback=LOOKBACK, tech_indicator_list=TECH_INDICATOR_LIST)
+        _, trade_for_baseline = make_train_trade(df_for_baseline)
+        baseline_rows = run_objective_baselines(trade_for_baseline, variant_tag)
+        all_metrics.extend(baseline_rows)
+    except Exception as e:
+        print(f"[Warning] Objective baselines failed for {variant_tag}: {e}")
+
+    # RL forecast-to-policy ablation
+    for agent_name in AGENTS_FOR_ABLATION:
+        for seed in SEEDS:
+            try:
+                metrics = train_and_trade_one_agent(
+                    csv_path=csv_path,
+                    variant_tag=variant_tag,
+                    agent_name=agent_name,
+                    seed=seed,
+                )
+                all_metrics.append(metrics)
+            except Exception as e:
+                print(f"[ERROR] {variant_tag} | {agent_name} | seed={seed}: {e}")
+
+raw_metrics_df = pd.DataFrame(all_metrics)
+raw_metrics_path = RL_ABLATION_DIR / "rl_ablation_raw_results.csv"
+raw_metrics_df.to_csv(raw_metrics_path, index=False)
+
+raw_metrics_df
+
+CELL 18
+## 9. 汇总结果表
+
+生成论文中可用的 `mean ± std` 汇总表。
+CELL 19
+# ===============================
+# 9. Summary table
+# ===============================
+
+if len(raw_metrics_df) == 0:
+    print("No results. Please check RL_ABLATION_INPUTS and CSV paths.")
+else:
+    metric_cols = ["CR", "AR", "Vol", "SR", "MDD", "Calmar", "Sortino", "Omega", "Turnover", "FinalAccountValue"]
+
+    summary_df = raw_metrics_df.groupby(["variant", "agent"])[metric_cols].agg(["mean", "std"])
+
+    summary_path = RL_ABLATION_DIR / "rl_ablation_summary.csv"
+    summary_df.to_csv(summary_path)
+
+    print("Saved summary:", summary_path)
+    display(summary_df)
+
+CELL 20
+## 10. 画累计收益曲线
+
+生成用于论文的 SVG 图：
+
+```text
+D:/paper/onging/ablation/rl/rl_ablation_cumulative_return.svg
+```
+
+建议放在 `Ablation study on forecast-driven portfolio allocation` 小节。
+CELL 21
+# ===============================
+# 10. Plot cumulative return curves
+# ===============================
+
+def plot_cumulative_return_curves(results_dir=RL_ABLATION_DIR):
+    results_dir = Path(results_dir)
+    files = sorted(results_dir.glob("*_daily_return.csv"))
+
+    if not files:
+        print("No daily_return files found.")
+        return
+
+    plt.figure(figsize=(9, 5))
+
+    for file in files:
+        df_ret = pd.read_csv(file)
+        if "daily_return" not in df_ret.columns:
+            continue
+
+        label = file.stem.replace("_daily_return", "")
+        curve = (1.0 + df_ret["daily_return"].astype(float)).cumprod() - 1.0
+        plt.plot(curve.values, label=label, linewidth=1.5)
+
+    plt.xlabel("Trading day")
+    plt.ylabel("Cumulative return")
+    plt.legend(fontsize=7)
+    plt.tight_layout()
+
+    out_path = results_dir / "rl_ablation_cumulative_return.svg"
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.show()
+
+    print("Saved:", out_path)
+
+plot_cumulative_return_curves()
+
+CELL 22
+## 11. 可选：完整 RL agent 比较
+
+如果你要做完整策略比较，可以把下面的 `RUN_FULL_AGENT_COMPARISON` 改成 `True`。
+
+这部分只建议对 `A0_Full_MGT` 运行 PPO/A2C/SAC/TD3/DDPG，不建议所有消融版本都跑五个 agent，计算量太大。
+CELL 23
+# ===============================
+# 11. Optional full-agent comparison
+# ===============================
+
+RUN_FULL_AGENT_COMPARISON = False
+
+if RUN_FULL_AGENT_COMPARISON:
+    full_agent_metrics = []
+    variant_tag = "A0_Full_MGT"
+    csv_path = RL_ABLATION_INPUTS[variant_tag]
+
+    FULL_AGENTS = ["a2c", "ppo", "sac", "td3", "ddpg"]
+
+    for agent_name in FULL_AGENTS:
+        for seed in SEEDS:
+            metrics = train_and_trade_one_agent(
+                csv_path=csv_path,
+                variant_tag=variant_tag,
+                agent_name=agent_name,
+                seed=seed,
+            )
+            full_agent_metrics.append(metrics)
+
+    full_agent_df = pd.DataFrame(full_agent_metrics)
+    full_agent_path = RL_ABLATION_DIR / "full_agent_comparison_raw_results.csv"
+    full_agent_df.to_csv(full_agent_path, index=False)
+
+    print("Saved:", full_agent_path)
+    display(full_agent_df)
+else:
+    print("RUN_FULL_AGENT_COMPARISON = False; skip full PPO/A2C/SAC/TD3/DDPG comparison.")
+
+CELL 24
+## 12. 可选：从第一个预测消融结果生成 FinRL 长表 CSV 的辅助函数
+
+如果第一个 notebook 输出的是 `A*_pred.csv` 预测矩阵，而不是 FinRL 长表 CSV，可以用下面函数把预测 close 合并回原始 OHLCV 长表中。
+
+注意：
+
+1. 预测矩阵必须已经反归一化到真实价格尺度；
+2. 预测矩阵的列顺序必须与 `base_trade_csv` 中的 ticker 顺序一致，或者直接带有 ticker 列名；
+3. 预测行数必须与指定日期范围内的交易日数量一致。
+
+如果你的预测 CSV 仍然是 MinMaxScaler 后的 `[-1, 1]` 数值，必须先反归一化，否则不能用于回测。
+CELL 25
+# ===============================
+# 12. Optional helper: merge predicted close into FinRL long table
+# ===============================
+
+def merge_predicted_close_to_finrl_csv(
+    base_trade_csv,
+    pred_matrix_csv,
+    output_csv,
+    start_date=TRADE_START,
+    end_date=TRADE_END,
+    tickers=None,
+    pred_is_real_price=True,
+):
+    if not pred_is_real_price:
+        raise ValueError("预测矩阵仍是归一化值，必须先反归一化到真实价格尺度。")
+
+    base_trade_csv = Path(base_trade_csv)
+    pred_matrix_csv = Path(pred_matrix_csv)
+    output_csv = Path(output_csv)
+
+    base = pd.read_csv(base_trade_csv)
+    _check_required_columns(base, base_trade_csv)
+
+    base["date"] = pd.to_datetime(base["date"]).dt.strftime("%Y-%m-%d")
+    date_mask = (base["date"] >= start_date) & (base["date"] <= end_date)
+
+    if tickers is None:
+        tickers = sorted(base["tic"].unique().tolist())
+
+    dates = sorted(base.loc[date_mask, "date"].unique().tolist())
+
+    pred = pd.read_csv(pred_matrix_csv)
+
+    # 如果预测 CSV 多了一列 unnamed index，则删除
+    unnamed = [c for c in pred.columns if str(c).lower().startswith("unnamed")]
+    if unnamed:
+        pred = pred.drop(columns=unnamed)
+
+    if pred.shape[1] == len(tickers):
+        pred.columns = tickers
+    else:
+        missing = set(tickers) - set(pred.columns)
+        if missing:
+            raise ValueError(
+                f"预测矩阵列数/列名与 ticker 不匹配。pred shape={pred.shape}, "
+                f"num tickers={len(tickers)}, missing={missing}"
+            )
+        pred = pred[tickers]
+
+    if len(pred) != len(dates):
+        raise ValueError(
+            f"预测矩阵行数 {len(pred)} 与日期数量 {len(dates)} 不一致。"
+            f"请检查 start_date/end_date 或预测输出区间。"
+        )
+
+    pred = pred.copy()
+    pred["date"] = dates
+    pred_long = pred.melt(id_vars="date", var_name="tic", value_name="pred_close")
+
+    merged = base.merge(pred_long, on=["date", "tic"], how="left")
+    replace_mask = merged["pred_close"].notna()
+
+    merged.loc[replace_mask, "close"] = merged.loc[replace_mask, "pred_close"]
+    merged = merged.drop(columns=["pred_close"])
+
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    merged.to_csv(output_csv, index=False)
+
+    print("Saved merged FinRL CSV:", output_csv)
+    print("Replaced close rows:", int(replace_mask.sum()))
+
+    return merged
+
+# 示例，不自动运行：
+# merge_predicted_close_to_finrl_csv(
+#     base_trade_csv=BASE_FULL_MGT_CSV,
+#     pred_matrix_csv=ABLATION_ROOT / "A1_Transformer_only_seed1_pred_real_price.csv",
+#     output_csv=GRAPH_DATA_DIR / "banktrademergeGNNtr20241231_A1_Transformer_only.CSV",
+#     start_date=TRADE_START,
+#     end_date=TRADE_END,
+# )
+
+CELL 26
+## 13. 论文中放置位置
+
+本 notebook 产生的结果建议放在：
+
+```latex
+\subsection{Ablation study on forecast-driven portfolio allocation}
+```
+
+表格建议命名：
+
+```latex
+Table X. Forecast-to-policy ablation under the same RL agent.
+```
+
+推荐表头：
+
+```latex
+State signal & RL agent & AR & SR & MDD & Calmar & Turnover
+```
+
+正文解释重点：
+
+1. 固定 RL agent，只改变 forecast-driven state；
+2. Full MGT-FinRL 优于 Vanilla/ablation signals，说明收益来自 MGT 的关系-时间预测信号；
+3. Transformer-only 或 MGNN-only 下降，说明单独时间建模或单独图建模都不充分；
+4. 单图版本弱于 Full MGT，说明 SH/QA/KD 三类关系存在互补性。

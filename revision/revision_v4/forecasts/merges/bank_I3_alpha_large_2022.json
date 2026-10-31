@@ -1,0 +1,11 @@
+{
+ "sector": "bank",
+ "model": "I3_alpha_large",
+ "source": "ensembles/bank_2022_I3_alpha_large.npz",
+ "source_sha256": "d7d9b902e151b901a8872dbca585098b8a3842ce7a12b258ffa6a9450e78201b",
+ "replaced_stock_days": 3630,
+ "kept_suspended_stock_days": 0,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "ff32978305c858df55209a2158288d23a891823c6f8769b6c3bc410d0ab5814c"
+}

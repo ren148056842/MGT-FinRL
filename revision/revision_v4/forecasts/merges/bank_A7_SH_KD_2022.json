@@ -1,0 +1,11 @@
+{
+ "sector": "bank",
+ "model": "A7_SH_KD",
+ "source": "ensembles/bank_2022_A7_SH_KD.npz",
+ "source_sha256": "70f34112bf3aa78316d7615bbd248266ebdfbcf6ec437182fb9b2ca7bf09a981",
+ "replaced_stock_days": 3630,
+ "kept_suspended_stock_days": 0,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "4bd41fb0bbb24d708069b8070401824bad825bfeff1a2f17a837a673795b7d4f"
+}

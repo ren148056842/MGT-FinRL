@@ -1,0 +1,11 @@
+{
+ "sector": "healthcare",
+ "model": "A1_Transformer_only",
+ "source": "ensembles/healthcare_2022_A1_Transformer_only.npz",
+ "source_sha256": "392fcf77a6f62dfbaeea02ec5f8b47df0536ad023dbb9a76699d4a17752e5317",
+ "replaced_stock_days": 3627,
+ "kept_suspended_stock_days": 3,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "db65718c6d3fba89b40153de633891171c2b8bfed708524165ecec73d836b340"
+}

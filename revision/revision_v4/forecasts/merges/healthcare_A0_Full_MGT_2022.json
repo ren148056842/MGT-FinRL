@@ -1,0 +1,11 @@
+{
+ "sector": "healthcare",
+ "model": "A0_Full_MGT",
+ "source": "ensembles/healthcare_2022_A0_Full_MGT.npz",
+ "source_sha256": "9fd72b06f23da33bea80f99a6dc07663fe325a9c30838e002decd1dd59b97d4c",
+ "replaced_stock_days": 3627,
+ "kept_suspended_stock_days": 3,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "29a43ba55fe10506311da910a7b083a6887eb8f6764d7c07a3be9805b425d4ed"
+}

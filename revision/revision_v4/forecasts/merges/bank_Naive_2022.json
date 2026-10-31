@@ -1,0 +1,11 @@
+{
+ "sector": "bank",
+ "model": "Naive",
+ "source": "runs/bank/2022/Naive/pred.npz",
+ "source_sha256": "a42faf72cabbe8efb86a5849fef59b95611acef6a6f5bbaae3afb5a995b51e34",
+ "replaced_stock_days": 3630,
+ "kept_suspended_stock_days": 0,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "684618aba790e8a910cae382c225856e9de19a50102590c419087a9b42cec0d4"
+}

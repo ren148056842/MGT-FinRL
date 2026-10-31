@@ -1,0 +1,11 @@
+{
+ "sector": "bank",
+ "model": "A2_MGNN_only",
+ "source": "ensembles/bank_2022_A2_MGNN_only.npz",
+ "source_sha256": "6e3871d899eddb6018b5f76b36801ea28b2d079b764c0403df86bdf52e71bd77",
+ "replaced_stock_days": 3630,
+ "kept_suspended_stock_days": 0,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "d871d3d5ef3e3735429de8096ce382b5af60dc4cfe877049cb2ee3ea8494aae2"
+}

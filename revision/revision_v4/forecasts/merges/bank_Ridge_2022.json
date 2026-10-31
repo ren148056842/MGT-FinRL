@@ -1,0 +1,11 @@
+{
+ "sector": "bank",
+ "model": "Ridge",
+ "source": "runs/bank/2022/Ridge/pred.npz",
+ "source_sha256": "b170da0107679aca2af95936b363a1ce21011dd4fcd6ac4207220197dd16bfc6",
+ "replaced_stock_days": 3630,
+ "kept_suspended_stock_days": 0,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "0b1ea1bbfd41563d75b59d3a167b2bd2eaba966993bebaf5e6afe786fc1edd55"
+}

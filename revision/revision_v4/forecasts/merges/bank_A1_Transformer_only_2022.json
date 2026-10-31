@@ -1,0 +1,11 @@
+{
+ "sector": "bank",
+ "model": "A1_Transformer_only",
+ "source": "ensembles/bank_2022_A1_Transformer_only.npz",
+ "source_sha256": "437a2aaa5ab845a53cfe673ed2135e637b68235a62e38a78541e9639c2e1283b",
+ "replaced_stock_days": 3630,
+ "kept_suspended_stock_days": 0,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "59e6c8cdc4c621d4313f4a1a6f0f168a43673cbfe60321619ed621a68fea4d2e"
+}

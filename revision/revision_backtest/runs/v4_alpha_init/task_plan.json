@@ -1,0 +1,236 @@
+[
+  {
+    "task_id": "E2_bank_I1_ppo_s1",
+    "sector": "bank",
+    "variant": "I1",
+    "algorithm": "ppo",
+    "seed": 1,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_bank_I2_ppo_s1",
+    "sector": "bank",
+    "variant": "I2",
+    "algorithm": "ppo",
+    "seed": 1,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_bank_I3_ppo_s1",
+    "sector": "bank",
+    "variant": "I3",
+    "algorithm": "ppo",
+    "seed": 1,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_bank_I1_ppo_s2",
+    "sector": "bank",
+    "variant": "I1",
+    "algorithm": "ppo",
+    "seed": 2,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_bank_I2_ppo_s2",
+    "sector": "bank",
+    "variant": "I2",
+    "algorithm": "ppo",
+    "seed": 2,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_bank_I3_ppo_s2",
+    "sector": "bank",
+    "variant": "I3",
+    "algorithm": "ppo",
+    "seed": 2,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_bank_I1_ppo_s3",
+    "sector": "bank",
+    "variant": "I1",
+    "algorithm": "ppo",
+    "seed": 3,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_bank_I2_ppo_s3",
+    "sector": "bank",
+    "variant": "I2",
+    "algorithm": "ppo",
+    "seed": 3,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_bank_I3_ppo_s3",
+    "sector": "bank",
+    "variant": "I3",
+    "algorithm": "ppo",
+    "seed": 3,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_healthcare_I1_ppo_s1",
+    "sector": "healthcare",
+    "variant": "I1",
+    "algorithm": "ppo",
+    "seed": 1,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_healthcare_I2_ppo_s1",
+    "sector": "healthcare",
+    "variant": "I2",
+    "algorithm": "ppo",
+    "seed": 1,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_healthcare_I3_ppo_s1",
+    "sector": "healthcare",
+    "variant": "I3",
+    "algorithm": "ppo",
+    "seed": 1,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_healthcare_I1_ppo_s2",
+    "sector": "healthcare",
+    "variant": "I1",
+    "algorithm": "ppo",
+    "seed": 2,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_healthcare_I2_ppo_s2",
+    "sector": "healthcare",
+    "variant": "I2",
+    "algorithm": "ppo",
+    "seed": 2,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_healthcare_I3_ppo_s2",
+    "sector": "healthcare",
+    "variant": "I3",
+    "algorithm": "ppo",
+    "seed": 2,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_healthcare_I1_ppo_s3",
+    "sector": "healthcare",
+    "variant": "I1",
+    "algorithm": "ppo",
+    "seed": 3,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_healthcare_I2_ppo_s3",
+    "sector": "healthcare",
+    "variant": "I2",
+    "algorithm": "ppo",
+    "seed": 3,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  },
+  {
+    "task_id": "E2_healthcare_I3_ppo_s3",
+    "sector": "healthcare",
+    "variant": "I3",
+    "algorithm": "ppo",
+    "seed": 3,
+    "steps": 40000,
+    "phase": 3,
+    "fees": [
+      "F0",
+      "F1"
+    ]
+  }
+]

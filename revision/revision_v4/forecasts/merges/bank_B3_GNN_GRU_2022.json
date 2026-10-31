@@ -1,0 +1,11 @@
+{
+ "sector": "bank",
+ "model": "B3_GNN_GRU",
+ "source": "ensembles/bank_2022_B3_GNN_GRU.npz",
+ "source_sha256": "b7c5939b9473a3ed2504dbc5f4b5add85918cd2fe9893da86ce1261708896d8c",
+ "replaced_stock_days": 3630,
+ "kept_suspended_stock_days": 0,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "ba8a1930c1bcc77680209405ac648862225b7105766cf39229da33f53d16e236"
+}

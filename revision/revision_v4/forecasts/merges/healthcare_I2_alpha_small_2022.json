@@ -1,0 +1,11 @@
+{
+ "sector": "healthcare",
+ "model": "I2_alpha_small",
+ "source": "ensembles/healthcare_2022_I2_alpha_small.npz",
+ "source_sha256": "d338788242d661904b4097420508539299d1543fdbefd8595f69c043f04887c2",
+ "replaced_stock_days": 3627,
+ "kept_suspended_stock_days": 3,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "11d89867e1298057e740dd6dc3545f2c98e2dda5edb55ba84e78d65579b24033"
+}

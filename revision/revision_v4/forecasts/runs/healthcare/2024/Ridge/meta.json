@@ -1,0 +1,18 @@
+{
+ "model": "Ridge",
+ "alpha": 10000.0,
+ "val_mse": 0.5504456105928179,
+ "alphas": [
+  0.1,
+  1,
+  10,
+  100,
+  1000.0,
+  10000.0,
+  100000.0,
+  1000000.0
+ ],
+ "seconds": 0.3585518999998385,
+ "pooled_over_stocks": true,
+ "inputs": "own 20-day window of the 8 features"
+}

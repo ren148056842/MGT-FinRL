@@ -1,0 +1,22 @@
+﻿
+   Id Path                                             PriorityClass        CPU
+   -- ----                                             -------------        ---
+  540 C:\Users\perfe\.conda\envs\finrl-meta\python.exe   AboveNormal        284
+ 5280 C:\Users\perfe\.conda\envs\finrl-meta\python.exe   AboveNormal    2.03125
+15000 C:\Users\perfe\.conda\envs\finrl-meta\python.exe   AboveNormal    2.21875
+19216 C:\Users\perfe\.conda\envs\finrl-meta\python.exe   AboveNormal     2.0625
+22060 C:\Users\perfe\.conda\envs\finrl-meta\python.exe   AboveNormal    2.28125
+24336 C:\Users\perfe\.conda\envs\tensorflow\python.exe   BelowNormal 1790.84375
+26980 C:\Users\perfe\.conda\envs\finrl-meta\python.exe   AboveNormal   2.109375
+27020 C:\Users\perfe\.conda\envs\tensorflow\python.exe   BelowNormal       1784
+28568 C:\Users\perfe\.conda\envs\finrl-meta\python.exe   AboveNormal    70.8125
+
+
+
+
+Name                      : 12th Gen Intel(R) Core(TM) i7-12700H
+NumberOfCores             : 14
+NumberOfLogicalProcessors : 20
+
+
+

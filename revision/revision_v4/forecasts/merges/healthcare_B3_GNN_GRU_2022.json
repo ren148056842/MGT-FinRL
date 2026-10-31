@@ -1,0 +1,11 @@
+{
+ "sector": "healthcare",
+ "model": "B3_GNN_GRU",
+ "source": "ensembles/healthcare_2022_B3_GNN_GRU.npz",
+ "source_sha256": "9f798bf7ec4cb6fbbe7de61516bca024a46b067baddab394183f9574ba6d5abf",
+ "replaced_stock_days": 3627,
+ "kept_suspended_stock_days": 3,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "8e2e9a5d6a3e6baeeed66bfb1787335a5a89c176d49455034972102c6fe698c3"
+}

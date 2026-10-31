@@ -1,0 +1,11 @@
+{
+ "sector": "healthcare",
+ "model": "A8_QA_KD",
+ "source": "ensembles/healthcare_2022_A8_QA_KD.npz",
+ "source_sha256": "4c3af0d10c0e9444fa26a1f07d6f42264cafe1f94053cad9b9bb2635dbff5bbe",
+ "replaced_stock_days": 3627,
+ "kept_suspended_stock_days": 3,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "72c114903de7892599bc3564d4dd425b6e5a5c6aa4b33078d648af59be7f67b7"
+}

@@ -1,0 +1,11 @@
+{
+ "sector": "bank",
+ "model": "A8_QA_KD",
+ "source": "ensembles/bank_2022_A8_QA_KD.npz",
+ "source_sha256": "2635d1d8c00c208b25de0d78b69a894946f82a65881f52fc4350f77958ff48a3",
+ "replaced_stock_days": 3630,
+ "kept_suspended_stock_days": 0,
+ "first_target": "2022-01-04",
+ "last_target": "2022-12-30",
+ "sha256": "964e79c39b876ff2aaa2142d873f67e8a670f55a22cd1df61f56819e1006f8ef"
+}
