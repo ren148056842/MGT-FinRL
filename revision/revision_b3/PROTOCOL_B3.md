@@ -129,3 +129,14 @@ setting; 2024 validation results; ablation sources; non-RL references.
 
 Code: revision_b3/fc_run_b3.py (forecasters), revision_b3/b3_rl.py (RL), revision_b3/b3_ingest.py
 (2025 ingestion), revision_b3/b3_analysis.py (tests), revision_b3/run_b3_*.ps1 (launchers).
+
+## Amendment 1 (2026-11-03, before any 2025 row is processed or any model sees 2025 data)
+
+The Tushare account has access to `daily` and `daily_basic` but not to the financial statements
+(`income`, `cashflow`, `balancesheet`), so negative PE(TTM) and PCF cannot be rebuilt as planned.
+The four valuation ratios are therefore taken from the public Eastmoney data centre (daily valuation
+report RPT_VALUEANALYSIS_DET: PE_TTM, PB_MRQ, PS_TTM, PCF_OCF_TTM; b3_fetch_em.py), which reports
+negative values in the same way as the existing panels. Prices and trading values remain from Tushare
+`daily`. The choice of source for each ratio follows the rule already registered: agreement with the
+existing panel over 2024 (Tushare daily_basic and Eastmoney are both scored; the source with the lower
+median absolute relative difference over 2024 is used for 2025). No other part of the protocol changes.
