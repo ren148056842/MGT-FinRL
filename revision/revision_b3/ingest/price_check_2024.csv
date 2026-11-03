@@ -1,0 +1,9 @@
+sector,channel,stock_days,share_within_tol,max_rel
+bank,high,3630,1.0,0.0
+bank,low,3630,1.0,0.0
+bank,close,3630,1.0,0.0
+bank,trading_value,3630,1.0,1.1364425060689047e-16
+healthcare,high,3630,1.0,0.0
+healthcare,low,3630,1.0,0.0
+healthcare,close,3630,1.0,0.0
+healthcare,trading_value,3630,1.0,1.1364867696929533e-16

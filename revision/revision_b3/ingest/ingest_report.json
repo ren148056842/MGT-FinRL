@@ -1,0 +1,106 @@
+{
+ "sectors": {
+  "bank": {
+   "panel_in": "/mnt/user-data/uploads/paper--2--xiu/bank sectordata/banktrade20241231.CSV",
+   "panel_out": "/tmp/claude-0/-home-claude/25959a92-328c-51c1-bcc8-355254792a5d/scratchpad/panels25/bank_panel_20251231.csv",
+   "rows_in": 25485,
+   "rows_2025": 3645,
+   "days_2025": 243,
+   "first_2025": "2025-01-02",
+   "last_2025": "2025-12-31",
+   "same_2024_days": true,
+   "suspended_stock_days_2025": 0,
+   "ratio_carried_forward_2025": {
+    "TTM": 0,
+    "PBR": 0,
+    "PS": 0,
+    "PCF": 0
+   },
+   "ratio_source": {
+    "TTM": [
+     "em",
+     "PE_TTM"
+    ],
+    "PBR": [
+     "em",
+     "PB_MRQ"
+    ],
+    "PS": [
+     "em",
+     "RB_PS_TOI"
+    ],
+    "PCF": [
+     "em",
+     "RB_PCF_CCE"
+    ]
+   },
+   "suspended_2024_panel": 0,
+   "missing_2024_tushare": 0,
+   "rows_out": 29130,
+   "columns_out": [
+    "tic",
+    "date",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "TTM",
+    "PBR",
+    "PS",
+    "PCF",
+    "day"
+   ]
+  },
+  "healthcare": {
+   "panel_in": "/mnt/user-data/uploads/paper--2--xiu/haelthcaresectordata/techtrade20241231.CSV",
+   "panel_out": "/tmp/claude-0/-home-claude/25959a92-328c-51c1-bcc8-355254792a5d/scratchpad/panels25/healthcare_panel_20251231.csv",
+   "rows_in": 25485,
+   "rows_2025": 3645,
+   "days_2025": 243,
+   "first_2025": "2025-01-02",
+   "last_2025": "2025-12-31",
+   "same_2024_days": true,
+   "suspended_stock_days_2025": 3,
+   "ratio_carried_forward_2025": {
+    "TTM": 0,
+    "PBR": 0,
+    "PS": 0,
+    "PCF": 0
+   },
+   "ratio_source": {
+    "TTM": [
+     "em",
+     "PE_TTM"
+    ],
+    "PBR": [
+     "em",
+     "PB_MRQ"
+    ],
+    "PS": [
+     "em",
+     "RB_PS_TOI"
+    ],
+    "PCF": [
+     "em",
+     "RB_PCF_CCE"
+    ]
+   },
+   "suspended_2024_panel": 0,
+   "missing_2024_tushare": 0,
+   "rows_out": 29130,
+   "columns_out": [
+    "tic",
+    "date",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "TTM",
+    "PBR",
+    "PS",
+    "PCF"
+   ]
+  }
+ },
+ "stop": []
+}
