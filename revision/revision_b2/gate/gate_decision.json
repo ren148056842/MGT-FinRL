@@ -1,0 +1,52 @@
+{
+ "bank": {
+  "IC2": -0.01122785514767842,
+  "t": -0.7788510187228411,
+  "G1": false,
+  "G2": {
+   "A10_No_cross_stock_R": false,
+   "A1_Transformer_only_R": false,
+   "Ridge_R": false
+  },
+  "passed": false,
+  "paired_difference_vs_rivals": {
+   "A10_No_cross_stock_R": {
+    "mean": -0.06800232232019883,
+    "t": -3.7566908399696954
+   },
+   "A1_Transformer_only_R": {
+    "mean": -0.08089138538704643,
+    "t": -3.8314617538801077
+   },
+   "Ridge_R": {
+    "mean": -0.05962541109702967,
+    "t": -2.647126477474231
+   }
+  }
+ },
+ "healthcare": {
+  "IC2": 0.011863209980573839,
+  "t": 0.8990044885708668,
+  "G1": false,
+  "G2": {
+   "A10_No_cross_stock_R": true,
+   "A1_Transformer_only_R": true,
+   "Ridge_R": false
+  },
+  "passed": false,
+  "paired_difference_vs_rivals": {
+   "A10_No_cross_stock_R": {
+    "mean": 0.010198776381116888,
+    "t": 0.640979748085561
+   },
+   "A1_Transformer_only_R": {
+    "mean": 0.0006058353724859504,
+    "t": 0.03996701180619909
+   },
+   "Ridge_R": {
+    "mean": -0.010278863321384484,
+    "t": -0.670376780095212
+   }
+  }
+ }
+}
