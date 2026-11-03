@@ -1,6 +1,6 @@
 """Plan B3: download the raw 2024-2025 inputs from Tushare Pro (no processing; see b3_ingest.py).
 
-python b3_fetch_tushare.py <token_file> <out_dir>
+python b3_fetch_tushare.py <token_file> <out_dir> [apis]     (apis: comma list, default daily)
 
 The token is read from <token_file> (kept outside the repository; never written to any output).
 Writes <out_dir>/{trade_cal,daily,daily_basic,income,cashflow,balancesheet}.csv and fetch_log.json.
@@ -35,6 +35,8 @@ def call(token, api, params, fields=''):
                 msg = str(j.get('msg'))
                 if '权限' in msg or 'permission' in msg.lower():
                     raise PermissionError(msg)
+                if '每天' in msg or '每日' in msg:
+                    raise PermissionError(msg)                 # daily quota: do not retry
                 raise RuntimeError(msg)
             d = j['data']
             LOG['calls'].append(dict(api=api, params=params, rows=len(d['items'])))
@@ -43,7 +45,8 @@ def call(token, api, params, fields=''):
             raise
         except Exception as e:
             last = e
-            time.sleep(min(65, 8 * (attempt + 1)))
+            print('retry', api, params.get('ts_code', ''), repr(e)[:200], flush=True)
+            time.sleep(61 if ('分钟' in str(e)) else min(65, 8 * (attempt + 1)))
     raise RuntimeError('%s %s: %r' % (api, params, last))
 
 
@@ -57,24 +60,33 @@ def codes():
 def main():
     token = pathlib.Path(sys.argv[1]).read_text(encoding='utf-8').strip()
     out = pathlib.Path(sys.argv[2]); out.mkdir(parents=True, exist_ok=True)
-    call(token, 'trade_cal', dict(exchange='SSE', start_date='20240101', end_date='20251231')).to_csv(out / 'trade_cal.csv', index=False)
-    frames = {k: [] for k in FIELDS}
-    for sector, tic, ts in codes():
-        for api in FIELDS:
-            if api in ('daily', 'daily_basic'):
-                params = dict(ts_code=ts, start_date='20240101', end_date='20251231')
-            else:
-                params = dict(ts_code=ts, start_date='20220101', end_date='20251231')
-            try:
-                d = call(token, api, params, FIELDS[api])
-            except Exception as e:
-                LOG['errors'].append(dict(api=api, ts_code=ts, error=str(e)))
-                print('ERROR', api, ts, e, flush=True)
-                continue
-            d.insert(0, 'tic', tic); d.insert(0, 'sector', sector)
-            frames[api].append(d)
-            print(api, sector, tic, ts, len(d), flush=True)
-            time.sleep(0.4)
+    apis = (sys.argv[3] if len(sys.argv) > 3 else 'daily').split(',')
+    if not any((p / 'trade_cal.csv').exists() for p in [out, out.parent / 'raw']):
+        call(token, 'trade_cal', dict(exchange='SSE', start_date='20240101', end_date='20251231')).to_csv(out / 'trade_cal.csv', index=False)
+    frames = {k: [] for k in apis}
+    allc = codes(); tsmap = {ts: (sector, tic) for sector, tic, ts in allc}
+    for api in apis:
+        if api in ('daily', 'daily_basic'):                 # several codes per call (row cap 6000)
+            groups = [allc[i:i + 8] for i in range(0, len(allc), 8)]
+            for g in groups:
+                params = dict(ts_code=','.join(ts for _, _, ts in g), start_date='20240101', end_date='20251231')
+                try:
+                    d = call(token, api, params, FIELDS[api])
+                except Exception as e:
+                    LOG['errors'].append(dict(api=api, ts_code=params['ts_code'], error=str(e))); print('ERROR', api, e, flush=True); continue
+                if len(d) >= 6000:
+                    raise RuntimeError('row cap reached; use smaller groups')
+                d.insert(0, 'tic', [tsmap[t][1] for t in d.ts_code]); d.insert(0, 'sector', [tsmap[t][0] for t in d.ts_code])
+                frames[api].append(d); print(api, params['ts_code'], len(d), flush=True)
+                time.sleep(1.0)
+        else:
+            for sector, tic, ts in allc:
+                try:
+                    d = call(token, api, dict(ts_code=ts, start_date='20220101', end_date='20251231'), FIELDS[api])
+                except Exception as e:
+                    LOG['errors'].append(dict(api=api, ts_code=ts, error=str(e))); print('ERROR', api, ts, e, flush=True); continue
+                d.insert(0, 'tic', tic); d.insert(0, 'sector', sector); frames[api].append(d)
+                print(api, sector, tic, ts, len(d), flush=True); time.sleep(0.4)
     for api, fs in frames.items():
         if fs:
             pd.concat(fs, ignore_index=True).to_csv(out / (api + '.csv'), index=False, encoding='utf-8')

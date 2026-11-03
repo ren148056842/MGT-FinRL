@@ -5,7 +5,7 @@ python b3_fetch_em.py <out_dir>
 Writes <out_dir>/valuation_em.csv and fetch_em_log.json.  Used because the Tushare account has no access to
 the financial statements needed to rebuild negative PE(TTM) and PCF (see PROTOCOL_B3.md, amendment 1).
 """
-import sys, json, time, pathlib, urllib.request, urllib.parse
+import sys, gzip, json, time, pathlib, urllib.request, urllib.parse
 import pandas as pd
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -25,7 +25,10 @@ def get(code, page):
     for attempt in range(6):
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
-                j = json.loads(r.read().decode('utf-8'))
+                b = r.read()
+                if b[:2] == b'\x1f\x8b':
+                    b = gzip.decompress(b)
+                j = json.loads(b.decode('utf-8'))
             if not j.get('success') or j.get('result') is None:
                 raise RuntimeError(str(j.get('message')))
             LOG['calls'].append(dict(code=code, page=page, rows=len(j['result']['data'])))

@@ -140,3 +140,16 @@ negative values in the same way as the existing panels. Prices and trading value
 `daily`. The choice of source for each ratio follows the rule already registered: agreement with the
 existing panel over 2024 (Tushare daily_basic and Eastmoney are both scored; the source with the lower
 median absolute relative difference over 2024 is used for 2025). No other part of the protocol changes.
+
+## Amendment 2 (2026-11-03, before any model sees 2025 data)
+
+The 2024 comparison showed that the panels' PCF is not an operating-cash-flow ratio: for every stock,
+total market value / PCF is constant within each calendar year and equals the fiscal-year (y - 1)
+net increase in cash and cash equivalents (Eastmoney F10 annual cash-flow statement, FBCCE_ADD or
+CCE_ADD; median absolute relative difference 0.0000 over 2024, sign agreement 1.00), whereas
+PCF_OCF_TTM differs by about 100%. PS changes denominator at the same dates. The ingestion therefore
+also scores rebuilt ratios, total market value (Eastmoney) / annual statement item of fiscal year
+(y - 1): PCF with the net increase in cash; PS with total operating income or operating income
+(b3_fetch_em_fin.py downloads the annual statements). The registered rule is unchanged: for each
+ratio, the candidate with the lowest 2024 median absolute relative difference (coverage >= 95%) is
+used for 2025.
