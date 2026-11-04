@@ -1,6 +1,7 @@
 import pandas as pd, matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+plt.rcParams['svg.fonttype'] = 'none'   # keep text as editable <text> in the SVG versions
 B='/mnt/user-data/uploads/paper--2--xiu/revision_b3/forecasts/runs'
 M=[('B2_GAT_Transformer_R','MGAT','#2a78d6'),('B1_GCN_Transformer_R','GCN','#eb6834'),('A10_No_cross_stock_R','No cross-stock','#1baf7a'),('A0_Full_MGT_R','MGNN','#c98500'),('A1_Transformer_only_R','Graph-free','#d55181')]
 plt.rcParams.update({'font.size':8,'axes.spines.top':False,'axes.spines.right':False,'axes.edgecolor':'#8a8984','axes.labelcolor':'#52514e','xtick.color':'#52514e','ytick.color':'#52514e'})
@@ -21,4 +22,4 @@ from matplotlib.lines import Line2D
 fig.legend([Line2D([],[],color='#52514e',lw=1.6),Line2D([],[],color='#52514e',lw=1.0,ls='--'),Line2D([],[],marker='o',ls='',color='#52514e',ms=4)],
            ['validation loss','training loss','early-stopping epoch'],loc='upper center',ncol=3,frameon=False,bbox_to_anchor=(0.5,1.02))
 fig.tight_layout(rect=(0,0,1,0.95))
-fig.savefig('/home/claude/v40/figs/fig9_b3.pdf'); fig.savefig('/home/claude/v40/figs/fig9_b3_prev.png',dpi=90)
+fig.savefig('/home/claude/v40/figs/fig9_b3.pdf'); fig.savefig('/home/claude/v40/figs/fig9_b3.svg'); fig.savefig('/home/claude/v40/figs/fig9_b3_prev.png',dpi=90)

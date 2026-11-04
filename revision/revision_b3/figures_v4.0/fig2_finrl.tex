@@ -22,7 +22,7 @@
 \node[box=cGy, minimum width=44mm] (px) at (0,0) {Observed prices\\ {\footnotesize unadjusted high, low, close}};
 \node[box=cInD, minimum width=44mm] (cov) at (0,-1.45) {252-day covariance $\boldsymbol{\Sigma}_t$ \ ($N\times N$)};
 \node[box=cInD, minimum width=44mm] (tech) at (0,-2.45) {MACD, RSI, CCI, DX \ ($4\times N$)};
-\node[box=cOD, minimum width=44mm] (fc) at (0,-4.0) {MGAT-T forecasts made at $t$\\ {\footnotesize fold whose test year contains $t{+}1$}};
+\node[box=cOD, minimum width=44mm] (fc) at (0,-4.0) {MGAT forecasts made at $t$\\ {\footnotesize fold whose test year contains $t{+}1$}};
 \node[box=cOD, minimum width=44mm] (frow) at (0,-5.3) {$z(\hat q_t)$ and standardised\\ predicted range $\hat h_1-\hat l_1$ \ ($2\times N$)};
 \draw[arr] (px)--(cov); \draw[arr] (fc)--(frow);
 % state
@@ -38,7 +38,7 @@
 % simulator
 \node[box=cTD, minimum width=56mm, minimum height=22mm] (sim) at (12.4,-4.25) {Trading simulator (share ledger)\\[2pt]
   {\footnotesize observed prices; rebalance to $\mathbf{w}_t$ at the close of $t{+}1$}\\ {\footnotesize commission, slippage, stamp duty (F0--F6)}\\
-  {\footnotesize $V_{t+1}=V_t(1+r^{\mathrm{net}}_{t+1})$, reward $=\eta\,r^{\mathrm{net}}_{t+1}$}};
+  {\footnotesize $V_{t+1}=V_t(1+r^{\mathrm{net}}_{t+1})$, reward $=\kappa_R\,r^{\mathrm{net}}_{t+1}$}};
 \draw[arr] (proj.south) |- (sim.east);
 \draw[arr] (sim.west) -| node[lbl, below, pos=0.3]{reward, $s_{t+1}$} (state.south);
 \node[box=cTD, minimum width=34mm] (met) at (18.6,-5.7) {Evaluation\\ {\footnotesize AR, SR, MDD, Calmar,}\\ {\footnotesize turnover; paired bootstrap}};

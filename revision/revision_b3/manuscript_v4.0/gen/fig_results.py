@@ -2,6 +2,7 @@
 import numpy as np, pandas as pd, matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+plt.rcParams['svg.fonttype'] = 'none'   # keep text as editable <text> in the SVG versions
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
@@ -69,7 +70,7 @@ h2, l2 = ax[1, 0].get_legend_handles_labels()
 fig.tight_layout(h_pad=1.8, w_pad=1.6, rect=(0, 0.05, 1, 0.93))
 fig.legend(h1, l1, loc='upper center', ncol=3, frameon=False, fontsize=7, bbox_to_anchor=(0.5, 1.0))
 fig.legend(h2, l2, loc='lower center', ncol=3, frameon=False, fontsize=7, bbox_to_anchor=(0.5, 0.0))
-fig.savefig(OUT + '/fig_forecast_b3.pdf'); fig.savefig(OUT + '/fig_forecast_b3_prev.png', dpi=110)
+fig.savefig(OUT + '/fig_forecast_b3.pdf'); fig.savefig(OUT + '/fig_forecast_b3.svg'); fig.savefig(OUT + '/fig_forecast_b3_prev.png', dpi=110)
 plt.close(fig)
 
 
@@ -124,5 +125,13 @@ a.set_title('(c) Paired differences from the naive source, 2025 (F1)', loc='left
 a.grid(axis='x', color=GRID, lw=0.6); a.set_axisbelow(True)
 a.legend([Line2D([], [], marker='s', color=INK2, ms=5, lw=1.6), Line2D([], [], marker='o', color=BLUE, ms=5, lw=1.6)],
          ['Banking', 'Healthcare'], loc='lower right', bbox_to_anchor=(1.0, 0.995), frameon=False, ncol=2, borderaxespad=0.1, handlelength=1.6)
-fig.savefig(OUT + '/fig_portfolio_b3.pdf', bbox_inches='tight'); fig.savefig(OUT + '/fig_portfolio_b3_prev.png', dpi=110, bbox_inches='tight')
+fig.savefig(OUT + '/fig_portfolio_b3.pdf', bbox_inches='tight'); fig.savefig(OUT + '/fig_portfolio_b3.svg', bbox_inches='tight'); fig.savefig(OUT + '/fig_portfolio_b3_prev.png', dpi=110, bbox_inches='tight')
 print('ok')
+
+
+# SVG copies for editing: plain font fallbacks (Inter if installed, otherwise Arial/Helvetica)
+import re as _re
+for _f in ['fig_forecast_b3.svg', 'fig_portfolio_b3.svg']:
+    _s = open(OUT + '/' + _f).read()
+    _s = _re.sub(r"font-family: [^;\"]+", "font-family: 'Inter', Arial, Helvetica, sans-serif", _s)
+    open(OUT + '/' + _f, 'w').write(_s)
