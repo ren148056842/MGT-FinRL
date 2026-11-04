@@ -153,3 +153,19 @@ also scores rebuilt ratios, total market value (Eastmoney) / annual statement it
 (b3_fetch_em_fin.py downloads the annual statements). The registered rule is unchanged: for each
 ratio, the candidate with the lowest 2024 median absolute relative difference (coverage >= 95%) is
 used for 2025.
+
+## Execution note (2026-11-04, before any 2025 RL result exists)
+
+The first RL run (2026-11-03 22:21 to 2026-11-04 04:09) trained 224 of the 230 tasks to completion,
+saved every checkpoint, selected the 2024 checkpoint, wrote validation.csv, best_policy.zip and the
+2024 validation trace, and then failed to write its record file (done.json) because the record
+contained the keys `sector` and `source` twice. The 2025 evaluation launched afterwards therefore
+found no finished models and evaluated none. Six TD3 tasks (bank Ridge_R s3, s5; bank A1_R s3;
+healthcare Ridge_R s3, s5; healthcare MGAT_T s5) did not start because 16 parallel off-policy
+agents exhausted memory for the 1M-transition replay buffers.
+
+Repair, with no change to any trained policy, protocol element or test: `b3_rl.py finalize` writes the
+missing records after checking that best_policy.zip is byte-identical to the checkpoint with the
+highest 2024 validation Sharpe ratio (earliest on ties), the selection rule of section 4; the six
+TD3 tasks are trained with identical code, hyperparameters and seeds, three at a time; the single
+2025 evaluation and the registered analysis then run as planned (run_b3_stage3.ps1).

@@ -211,9 +211,9 @@ def train_one(sec, src, algo, seed):
     info = dict(run_id=task + '_F1', sector=sec, source=src, algorithm=algo, seed=seed, fee='F1', period='2024')
     export_trace(venv, RUN / 'validation' / (task + '_F1'), info)
     save_json(RUN / 'validation' / (task + '_F1') / 'metrics.json', {**stats_from_env(venv), **info})
-    save_json(out / 'done.json', dict(task=task, sector=sec, source=src, algorithm=algo, seed=seed, selected=best_path.name,
-                                      best_validation_SR=best, train_seconds=time.perf_counter() - t0, budget=target,
-                                      policy_sha256=sha(out / 'best_policy.zip'), finished=now(), **meta))
+    save_json(out / 'done.json', {**meta, **dict(task=task, sector=sec, source=src, algorithm=algo, seed=seed, selected=best_path.name,
+                                                 best_validation_SR=best, train_seconds=time.perf_counter() - t0, budget=target,
+                                                 policy_sha256=sha(out / 'best_policy.zip'), finished=now())})
     log('trained', task=task, seconds=round(time.perf_counter() - t0, 1), val_SR=round(float(best), 4))
 
 
@@ -261,6 +261,42 @@ def worker(wid):
             (d / 'failure.log').write_text(traceback.format_exc(), encoding='utf-8')
             log('failed', task=task, error=repr(e))
     log('worker finished', worker=wid, trained=n)
+
+
+def finalize():
+    """Write done.json for tasks whose training finished but whose done.json was not written (bookkeeping
+    error of the first run: duplicate keyword in the record).  The policy is not changed: best_policy.zip must
+    be byte-identical to the checkpoint with the highest 2024 validation SR in validation.csv (earliest on ties)."""
+    rec = {}
+    f = RUN / 'records.jsonl'
+    if f.exists():
+        for line in f.read_text(encoding='utf-8').splitlines():
+            r = json.loads(line)
+            if r.get('task') and r['msg'] in ('start', 'failed'):
+                rec.setdefault(r['task'], {})[r['msg']] = r['time']
+    rows = []
+    for sec, src, algo, seed in all_tasks():
+        task = task_name(sec, src, algo, seed); out = RUN / 'models' / task
+        if (out / 'done.json').exists() or not (out / 'best_policy.zip').exists() or not (out / 'validation.csv').exists():
+            continue
+        v = pd.read_csv(out / 'validation.csv')
+        score = v.validation_SR.where(np.isfinite(v.validation_SR), -np.inf)
+        k = int(np.argmax(score.to_numpy()))
+        ck = out / v.checkpoint.iloc[k]
+        ok = sha(ck) == sha(out / 'best_policy.zip')
+        if not ok:
+            rows.append(dict(task=task, status='mismatch')); log('finalize mismatch', task=task); continue
+        parts, meta, _ = build(sec, src)
+        secs = None
+        if task in rec and 'start' in rec[task] and 'failed' in rec[task]:
+            secs = (datetime.datetime.fromisoformat(rec[task]['failed']) - datetime.datetime.fromisoformat(rec[task]['start'])).total_seconds()
+        save_json(out / 'done.json', {**meta, **dict(task=task, sector=sec, source=src, algorithm=algo, seed=seed, selected=ck.name,
+                                                     best_validation_SR=float(v.validation_SR.iloc[k]), train_seconds=secs,
+                                                     budget=int(v.steps.max()), policy_sha256=sha(out / 'best_policy.zip'),
+                                                     finished=now(), recovered_record=True)})
+        rows.append(dict(task=task, status='finalized', selected=ck.name))
+    pd.DataFrame(rows).to_csv(RUN / 'finalize_log.csv', index=False)
+    log('finalized', n=sum(r['status'] == 'finalized' for r in rows), mismatches=sum(r['status'] == 'mismatch' for r in rows))
 
 
 def unclaim():
@@ -340,7 +376,7 @@ def references():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('command', choices=['prepare', 'smoke', 'worker', 'unclaim', 'status', 'evaluate', 'references'])
+    ap.add_argument('command', choices=['prepare', 'smoke', 'worker', 'finalize', 'unclaim', 'status', 'evaluate', 'references'])
     ap.add_argument('--id', type=int, default=0)
     ap.add_argument('--panel-dir', default='')
     a = ap.parse_args()
@@ -361,6 +397,8 @@ def main():
         smoke()
     elif a.command == 'worker':
         worker(a.id)
+    elif a.command == 'finalize':
+        finalize()
     elif a.command == 'unclaim':
         unclaim()
     elif a.command == 'status':
