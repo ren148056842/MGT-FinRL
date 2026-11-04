@@ -188,3 +188,22 @@ forecast sources, agents, selection, or tests, and its results are reported in f
    linked by each relation relative to the average admissible neighbour, entropy relative to uniform
    attention, day-to-day variability, agreement across seeds, and attention received by each firm.
 Code: b3x_ablation.py; launcher run_b3x.ps1 / 10_run_b3x.cmd; outputs forecasts_x/ and results_x/.
+
+## Addendum Y (2026-11-04, after the registered 2025 evaluation; descriptive, not part of the registered tests)
+
+Further reviewer requests, run after Addendum X with the same rules (reported in full, no change to the
+registered elements):
+1. Forecaster depth and Transformer depth: X5 one graph-attention layer (64 units), X6 two layers (32, 64),
+   X7 two Transformer encoder blocks; otherwise identical to MGAT; folds 2022-2025, seeds 1-3; same measures
+   as Addendum X. The evaluation of Addenda X and Y also reports, for every forecaster, the hit rate of the
+   sign of q and of q relative to the day's cross-sectional mean.
+2. Allocation baselines with the registered ledger and costs, 2024 and 2025: long-only minimum variance from
+   the 252-day covariance of the RL state (monthly and daily rebalancing) and inverse volatility (monthly).
+3. Volatility regimes within 2025 (median split of the trailing 20-day volatility of daily equal weighting):
+   Sharpe ratios of the 25 MGAT and 25 naive policies (F1) and their paired difference (block bootstrap).
+4. Market structure by sector and year 2022-2025 (pairwise correlation, first principal component,
+   cross-sectional dispersion, equal-weight volatility).
+5. PPO sensitivity (MGAT and naive sources, seeds 1-5): learning rate 3e-4 and 3e-3 (registered 1e-3) and
+   discount factor 0.9 and 0.999 (registered 0.99), each changed alone; otherwise the registered training and
+   selection; evaluation on 2025 under F1; paired MGAT-naive difference with the registered bootstrap.
+Code: b3x_ablation.py (smoke2, --variants), b3x_refs.py, b3x_rl.py; launcher run_b3y.ps1 / 11_run_b3y.cmd.

@@ -29,7 +29,10 @@ import fc_run_b3 as B3                         # sets fold 2025 and the extended
 OUTX = HERE / 'forecasts_x'
 B2.OUT = OUTX
 B2.TAG = 'b3x'
-VARIANTS = {'X1_GAT_no_KD': [0, 1, 1], 'X2_GAT_no_QA': [1, 0, 1], 'X3_GAT_no_SH': [1, 1, 0], 'X4_GAT_complete': [1, 1, 1]}
+VARIANTS = {'X1_GAT_no_KD': [0, 1, 1], 'X2_GAT_no_QA': [1, 0, 1], 'X3_GAT_no_SH': [1, 1, 0], 'X4_GAT_complete': [1, 1, 1],
+            'X5_GAT_1layer': [1, 1, 1], 'X6_GAT_2layers': [1, 1, 1], 'X7_Transformer_2blocks': [1, 1, 1]}
+EXTRA = {'X5_GAT_1layer': dict(units=[64]), 'X6_GAT_2layers': dict(units=[32, 64]), 'X7_Transformer_2blocks': dict(blocks=2)}
+FIRST = ['X1_GAT_no_KD', 'X2_GAT_no_QA', 'X3_GAT_no_SH', 'X4_GAT_complete']
 ORIG_PANEL = {s: D.SECTORS[s]['panel'] for s in D.SECTORS}
 
 
@@ -37,7 +40,8 @@ def register():
     import tensorflow as tf
     import fc_models as FM
     for k, w in VARIANTS.items():
-        FM.CONFIGS[k] = dict(graph='gat', w=list(w), learn_alpha=False, temporal='transformer', complete=(k == 'X4_GAT_complete'))
+        FM.CONFIGS[k] = dict(graph='gat', w=list(w), learn_alpha=False, temporal='transformer', complete=(k == 'X4_GAT_complete'),
+                             **EXTRA.get(k, {}))
     base = FM.Forecaster
     if getattr(base, '_b3x', False):
         return
@@ -46,10 +50,39 @@ def register():
         _b3x = True
 
         def __init__(self, N, F, P, graphs, cfg, **kw):
-            super().__init__(N, F, P, graphs, cfg, **kw)
+            old = FM.UNITS_GNN
+            if cfg.get('units'):
+                FM.UNITS_GNN = list(cfg['units'])              # depth variants (read only in Forecaster.__init__)
+            try:
+                super().__init__(N, F, P, graphs, cfg, **kw)
+            finally:
+                FM.UNITS_GNN = old
             if cfg.get('complete'):
                 for layer in self.gnn:
                     layer.mask = tf.constant(np.ones((N, N), bool))
+            self.n_blocks = int(cfg.get('blocks', 1))
+            if self.n_blocks == 2:                             # a second, identical encoder block
+                nh, dff, dr = kw.get('num_heads', 4), kw.get('dff', 128), kw.get('dropout', 0.1)
+                self.attn2 = tf.keras.layers.MultiHeadAttention(num_heads=nh, key_dim=max(1, self.D // nh))
+                self.n3 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+                self.n4 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+                self.ffn2 = tf.keras.Sequential([tf.keras.layers.Dense(dff, activation='relu'), tf.keras.layers.Dense(self.D)])
+                self.drop2 = tf.keras.layers.Dropout(dr)
+
+        def call(self, x, training=False):
+            if self.n_blocks == 1:
+                return super().call(x, training=training)
+            if self.graph:
+                x = tf.concat([x, self.graph_branch(x)], axis=-1)
+            B, P, N = tf.shape(x)[0], tf.shape(x)[1], tf.shape(x)[2]
+            s = tf.reshape(tf.transpose(x, [0, 2, 1, 3]), [B * N, P, self.D]) + self.pos
+            a = self.attn(s, s, s, training=training)
+            s = self.n1(s + self.drop(a, training=training))
+            s = self.n2(s + self.drop(self.ffn(s), training=training))
+            a = self.attn2(s, s, s, training=training)
+            s = self.n3(s + self.drop2(a, training=training))
+            s = self.n4(s + self.drop2(self.ffn2(s), training=training))
+            return self.out(tf.reshape(s[:, -1], [B, N, -1]))
     FM.Forecaster = ForecasterX
 
 
@@ -69,11 +102,11 @@ def neighbourhoods(graphs, w, complete=False):
 
 
 # ------------------------------------------------------------------ training
-def train(folds, sectors, threads, panel_dir, smoke=False):
+def train(folds, sectors, threads, panel_dir, smoke=False, names=None):
     register()
-    B2.TAG = 'b3x_%s_%s' % ('_'.join(sectors), '_'.join(map(str, folds)))
+    names = list(names or FIRST)
+    B2.TAG = 'b3x_%s_%s_%s' % ('_'.join(sectors), '_'.join(map(str, folds)), names[0][:2])
     V4.set_threads(threads or None)
-    names = list(VARIANTS)
     total = len(folds) * len(sectors) * len(names) * len(B2.SEEDS); done = 0
     for fold in folds:
         set_panel(fold, panel_dir)
@@ -95,7 +128,7 @@ def train(folds, sectors, threads, panel_dir, smoke=False):
                           meta.get('epochs_run'), meta.get('best_epoch'), meta.get('train_seconds', 0)), flush=True)
                 B2.ensemble(sec, fold, k + '_R')
     if not smoke:
-        (OUTX / ('DONE_%s_%s' % ('_'.join(sectors), '_'.join(map(str, folds))))).write_text(B2.now(), encoding='utf-8')
+        (OUTX / ('DONE_%s_%s_%s' % ('_'.join(sectors), '_'.join(map(str, folds)), names[0][:2]))).write_text(B2.now(), encoding='utf-8')
 
 
 # ------------------------------------------------------------------ attention analysis
@@ -193,6 +226,9 @@ def evaluate(panel_dir, out):
         for fold in [2022, 2023, 2024, 2025]:
             ref = (B2F if fold in (2022, 2023) else B3F) / 'ensembles' / ('%s_%d_B2_GAT_Transformer_R.npz' % (sec, fold))
             files = {'MGAT_T': ref}
+            reg = {'A1_R': 'A1_Transformer_only_R', 'GCN_R': 'B1_GCN_Transformer_R', 'A10_R': 'A10_No_cross_stock_R', 'MGT_R': 'A0_Full_MGT_R'}
+            files.update({k: (B2F if fold in (2022, 2023) else B3F) / 'ensembles' / ('%s_%d_%s.npz' % (sec, fold, v)) for k, v in reg.items()})
+            files['Ridge_R'] = B3F / 'runs' / sec / str(fold) / 'Ridge_R' / 'pred.npz'
             files.update({k: OUTX / 'ensembles' / ('%s_%d_%s_R.npz' % (sec, fold, k)) for k in VARIANTS})
             z0 = np.load(ref); idx = np.array([row[str(d)] for d in z0['test_dates']]); Yt, Mt = Y[idx], M[idx]
             Fn = D.naive_forecast(p, idx)
@@ -205,12 +241,23 @@ def evaluate(panel_dir, out):
                 F = z['test']; ic[name] = spearman_rows(F[:, :, 5] - F[:, :, 2], q, qm)
                 r = dict(sector=sec, test_year=fold, model=name, days=len(idx))
                 for k, ch in [('h1', 0), ('l1', 1), ('c1', 2)]:
+                    if name == 'Ridge_R':
+                        r['RMSE_%s_rel_naive' % k] = np.nan; continue
                     e = (F[:, :, ch] - Yt[:, :, ch])[Mt[:, :, ch]]; en = (Fn[:, :, ch] - Yt[:, :, ch])[Mt[:, :, ch]]
                     r['RMSE_%s_rel_naive' % k] = float(np.sqrt(np.mean(e ** 2)) / np.sqrt(np.mean(en ** 2)) - 1)
+                # direction measures at the tradable horizon: sign of q, and sign of q relative to the day's cross-sectional mean
+                qh = F[:, :, 5] - F[:, :, 2]; ok = qm & np.isfinite(qh)
+                qhd = qh - np.nanmean(np.where(ok, qh, np.nan), 1, keepdims=True); qd_ = q - np.nanmean(np.where(ok, q, np.nan), 1, keepdims=True)
+                hit_abs = np.where(ok & (q != 0) & (qh != 0), (np.sign(qh) == np.sign(q)).astype(float), np.nan)
+                hit_rel = np.where(ok & (qd_ != 0) & (qhd != 0), (np.sign(qhd) == np.sign(qd_)).astype(float), np.nan)
+                for nm, hv in [('DA_q', hit_abs), ('DA_rel', hit_rel)]:
+                    dly = np.nanmean(hv, 1); dly = dly[np.isfinite(dly)]
+                    r[nm] = float(np.nanmean(hv)) if np.isfinite(hv).any() else np.nan
+                    r[nm + '_t'] = float((dly.mean() - 0.5) / dly.std(ddof=1) * np.sqrt(len(dly))) if len(dly) > 2 else np.nan
                 v = ic[name][np.isfinite(ic[name])]
                 r['IC2'] = float(v.mean()); r['IC2_t'] = float(v.mean() / v.std(ddof=1) * np.sqrt(len(v)))
                 rows.append(r)
-            for name in VARIANTS:
+            for name in list(VARIANTS) + ['A1_R', 'GCN_R', 'A10_R', 'MGT_R', 'Ridge_R']:
                 if name not in ic:
                     continue
                 d = ic['MGAT_T'] - ic[name]; d = d[np.isfinite(d)]
@@ -232,22 +279,26 @@ def evaluate(panel_dir, out):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('command', choices=['smoke', 'train', 'attention', 'evaluate'])
+    ap.add_argument('command', choices=['smoke', 'smoke2', 'train', 'attention', 'evaluate'])
     ap.add_argument('--folds', default='2022,2023,2024,2025')
     ap.add_argument('--sectors', default='bank,healthcare')
     ap.add_argument('--threads', type=int, default=0)
     ap.add_argument('--panel-dir', required=True)
     ap.add_argument('--out', default='results_x')
+    ap.add_argument('--variants', default='')
     a = ap.parse_args()
     out = HERE / a.out; out.mkdir(parents=True, exist_ok=True)
     folds = [int(x) for x in a.folds.split(',')]; sectors = a.sectors.split(',')
-    if a.command == 'smoke':
+    if a.command == 'smoke2':
+        train([2022], ['bank'], a.threads, a.panel_dir, smoke=True, names=list(EXTRA))
+        print('SMOKE2 OK', flush=True)
+    elif a.command == 'smoke':
         train([2022, 2025], ['healthcare'], a.threads, a.panel_dir, smoke=True)
         (out / 'smoke').mkdir(exist_ok=True)
         attention(a.panel_dir, out / 'smoke', smoke=True)
         print('SMOKE OK', flush=True)
     elif a.command == 'train':
-        train(folds, sectors, a.threads, a.panel_dir)
+        train(folds, sectors, a.threads, a.panel_dir, names=a.variants.split(',') if a.variants else None)
     elif a.command == 'attention':
         attention(a.panel_dir, out)
     else:
