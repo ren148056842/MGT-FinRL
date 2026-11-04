@@ -1,0 +1,101 @@
+\subsection{Forecasting results}\label{sec:price_pred}
+
+{\color{blue}Table~\ref{tab:forecast_eval} reports forecast accuracy in the evaluation year 2025, and Table~\ref{tab:forecast_years} in Appendix~\ref{app:model_complexity} reports all four test years. Each forecast is produced by the fold whose model was fitted and stopped before the test year, and the reported values are means of three seeds. For each price channel $c\in\{\mathrm{high},\mathrm{low},\mathrm{close}\}$ of day $t+1$, accuracy is measured on the log ratios of Section~\ref{subsec:objective}, whose errors equal the errors of the log prices,
+\begin{equation}
+\mathrm{RMSE}_c=\Big(\frac{1}{|\mathcal{S}_c|}\sum_{(t,i)\in\mathcal{S}_c}\big(\hat y^{c}_{t,i,1}-y^{c}_{t,i,1}\big)^2\Big)^{1/2},
+\label{eq:rmse}
+\end{equation}
+where $\mathcal{S}_c$ contains all forecast origins $t$ of the test year and all stocks $i$ with an observed target, so the average runs over both dates and stocks and each channel is evaluated separately. Tables report $\mathrm{RMSE}_c/\mathrm{RMSE}^{\mathrm{prev}}_c-1$, where the benchmark uses the previous day's values ($\log(H_{t,i}/C_{t,i})$, $\log(L_{t,i}/C_{t,i})$, and 0 for the close). The ranking measure at the tradable horizon is
+\begin{equation}
+\mathrm{IC}_2=\frac{1}{|\mathcal{T}_{\mathrm{test}}|}\sum_{t\in\mathcal{T}_{\mathrm{test}}}\rho^{S}_t\big(\hat{\mathbf{q}}_t,\mathbf{q}_t\big),
+\label{eq:ic2}
+\end{equation}
+where $\rho^{S}_t$ is the Spearman correlation across the stocks with observed $q_{t,i}$ (Eq.~\eqref{eq:q}) on day $t$, with a $t$-statistic computed from the daily coefficients.
+
+\paragraph{Price levels}
+All neural forecasters predict the next day's high and low more accurately than the previous day's values in every test year. In 2025, MGAT reduces the root mean squared error of the log high by 18.9\% in banking and 15.5\% in healthcare, and that of the log low by 18.9\% and 28.5\%; across 2022--2025 the reductions range from 7\% to 29\%. The intraday range is persistent and partly predictable from the recent window, whereas the closing return is not: no forecaster improves on the previous close (changes of $+0.1\%$ to $+6.1\%$ in 2025), consistent with weak-form efficiency at the daily horizon.
+
+\paragraph{Ranking at the tradable horizon}
+The registered forecasting hypothesis H3 concerns the rank correlation between $\hat q_t$ and the realised return from the close of $t+1$ to the close of $t+2$. In 2025, the IC$_2$ of MGAT is 0.052 in healthcare ($t=2.28$, one-sided $p=0.012$, Holm-adjusted $p=0.024$) and 0.014 in banking ($t=0.70$, $p=0.24$). H3 is therefore supported in healthcare and not in banking. The healthcare signal is shared by the neural forecasters trained with the ranking-aware objective (IC$_2$ between 0.038 and 0.053, $t$ between 1.8 and 2.4), and the paired daily differences between MGAT and the graph-free, GCN, and no-cross-stock forecasters are small, with 95\% block-bootstrap intervals that include zero (MGAT minus graph-free: 0.005, $[-0.018, 0.027]$). In banking, MGAT ranks the tradable return better than the ridge regression (0.044, $[0.015, 0.074]$), whereas its differences from the other neural forecasters include zero. Across the four test years, the IC$_2$ of MGAT varies between $-0.007$ (banking, 2024) and 0.081 (banking, 2023); its sign is positive in seven of the eight sector-years.
+
+These results indicate that the ranking information comes mainly from the inputs and the training objective, with a modest and statistically unresolved contribution of the relation graphs, and that its strength varies across years. The cross-sectional rank correlations of 0.01--0.08 are of the size commonly reported for daily equity signals; they are informative for ranking but explain a small fraction of the cross-sectional variation in returns.\par}
+
+\input{tab_forecast_2025}
+
+\subsection{Trading environment and implementation details}
+\label{subsec:env}
+{\color{blue}
+We implement a portfolio-allocation environment with an explicit share-and-cash ledger and initial capital $V_0=10^6$. State and action definitions follow Section~\ref{FinRL-based portfolio optimization}. Decisions made after the close of day $t$ are executed at the observed close of day $t+1$. Portfolios are long-only and fully invested, with no leverage, fractional shares, and at most one rebalancing per trading day.
+
+Let $B_{t+1}$ and $S_{t+1}$ denote the buy and sell notionals, computed from price-drifted holdings and fee-aware target holdings. Trading costs are
+\begin{equation}
+C_{t+1}=(c+s)(B_{t+1}+S_{t+1})+\tau_{t+1}S_{t+1},
+\label{eq:trading_cost}
+\end{equation}
+where $c$ is the commission rate and $s$ is a slippage allowance charged as a cash deduction without adjusting execution prices. The sell-side stamp duty $\tau_{t+1}$ is 10 basis points (bp) before August~28,~2023 and 5~bp thereafter. Target holdings are scaled to maintain self-financing:
+\begin{equation}
+V_{t+1}=V^{-}_{t+1}-C_{t+1},
+\qquad
+V^{-}_{t+1}=c^{\mathrm{cash}}_t+\sum_{i=1}^{N}q_{t,i}p_{t+1,i},
+\label{eq:portfolio_value_update}
+\end{equation}
+where $q_{t,i}$ and $c^{\mathrm{cash}}_t$ are the holdings and cash after the day-$t$ trade, and $p_{t+1,i}$ is the observed closing price. Initial purchases incur costs; terminal holdings are marked to market without liquidation charges. Gross turnover is the daily average of $(B_{t+1}+S_{t+1})/V^{-}_{t+1}$.
+
+We evaluate seven commission/slippage settings in bp: F0 (0/0, without stamp duty), F1 (3/2), F2 (5/2), F3 (10/2), F4 (20/2), F5 (3/0), and F6 (3/5). F1--F6 include stamp duty. Training and checkpoint selection use F1, and each selected policy is evaluated under all seven settings without retraining. Newly purchased shares cannot be sold before the following trading day; minimum commissions, board lots, price limits, market impact, and liquidity constraints are not modelled.
+
+All agents use Stable-Baselines3 2.4.0 with multilayer-perceptron policies and seeds 1--5. Hyperparameters and metric definitions are provided in Appendices~\ref{app:hyper} and~\ref{app:portfolio_metrics}. Sharpe ratios use a zero risk-free rate. A constant annual rate $r_f$ would lower each Sharpe ratio by approximately $r_f/\sigma_{\mathrm{ann}}$; because the annualised volatilities of the policies lie within 14.9--16.2\% in banking and 27.8--34.5\% in healthcare, a rate of 1.5\% would change the differences between policies of the same sector by at most 0.01. As reference strategies, we report daily equal weighting, equal-weight buy-and-hold, and forecast-ranking rules (Section~\ref{subsec:rules}), all with the same ledger and costs.
+\par}
+
+\subsection{Portfolio results in the evaluation year}\label{subsec:comparison}
+
+{\color{blue}Table~\ref{tab:main_f1} summarises the 2025 performance of the 25 policies of each forecast source under F1, and Table~\ref{tab:paired_boot} reports the registered tests.
+
+\paragraph{Pre-registered hypotheses}
+The primary hypothesis H1 is not supported in either sector. In healthcare, the MGAT agents attain a mean Sharpe ratio of 1.20, compared with 1.15 for the naive agents (paired difference 0.043, 90\% interval $[-0.066, 0.164]$, $p=0.27$; Holm-adjusted $p=0.55$); the MGAT agents also have the highest mean annualised return (36.8\%) and Calmar ratio (1.96) and the smallest mean drawdown (18.9\%) of the four sources. In banking, the MGAT agents attain 0.54, compared with 0.58 for the naive agents (difference $-0.040$, $[-0.108, 0.023]$, $p=0.83$). The secondary hypotheses H2a and H2b are not supported either: in healthcare, the differences from the graph-free and ridge agents are 0.048 ($p=0.093$) and 0.042 ($p=0.124$), with a Holm-adjusted $p$ of 0.28 for both; in banking, both differences are slightly negative. The conclusions are the same for block lengths of 5 and 20 days.
+
+\paragraph{Size of the effects}
+The differences between forecast sources are small relative to the dispersion across agents and seeds. The standard deviation of the Sharpe ratio across the 25 policies of one source is 0.08--0.19, whereas the mean differences between sources are at most 0.05. In healthcare, the MGAT policy has a higher Sharpe ratio than the naive policy with the same agent and seed in 13 of 25 pairs, and in banking in 11 of 25. All RL policies remain close to an equally weighted portfolio, and daily equal weighting attains a Sharpe ratio of 0.61 in banking and 1.23 in healthcare, which 24 of the 100 banking policies and 25 of the 100 healthcare policies exceed. The two sectors also differ in their 2025 market: daily equal weighting returned 8.4\% in banking and 37.6\% in healthcare, with maximum drawdowns of 15.5\% and 19.1\%.\par}
+
+\input{tab_main_f1}
+\input{tab_tests}
+
+\subsection{Results by agent and policy behaviour}\label{subsec:sector}
+
+{\color{blue}Table~\ref{tab:byagent} reports the comparison between MGAT and naive agents for each algorithm, and Table~\ref{tab:policy} describes how the policies allocate. These comparisons are descriptive and are not corrected for multiplicity.
+
+The per-agent differences are mixed in sign. The largest is that of SAC in healthcare (0.103, 90\% interval $[0.040, 0.170]$); TD3 differs by 0.140 in healthcare and $-0.180$ in banking, with intervals that span zero. The policy diagnostics show why the per-agent results should not be read as evidence that the agents exploit the forecasts. Across agents, the mean daily rank correlation between the weights of the MGAT agents and the MGAT forecast is $-0.041$ in banking and $-0.027$ in healthcare, and the weights of the MGAT and naive agents have a mean rank correlation with the realised tradable return of at most 0.015 in absolute value for every agent. The policies differ mainly in how far they move from equal weights: SAC and PPO stay close to equal weighting (active share 0.02--0.09), A2C moves further (0.11--0.15), and TD3 and DDPG deviate most (0.32--0.40). In healthcare, the MGAT SAC policies have an active share of 0.03, compared with 0.09 for the naive SAC policies, so their advantage reflects allocations closer to the equal-weight portfolio, which performed well in 2025, rather than a tilt towards the stocks that MGAT ranks highly.
+
+The agents therefore learned allocations that are nearly insensitive to the forecast rows of the state. Two features of the setting make this plausible. The forecast signal is weak relative to daily return noise (IC$_2$ of 0.05 at best), and the reward of Eq.~\eqref{eq:rl_reward} rewards a tilt only through its effect on the next day's portfolio return, so 484 training days provide a noisy learning signal for a cross-sectional tilt. In addition, the development-year forecasts that enter the training states rank the tradable return with different strength in the two training years (Table~\ref{tab:forecast_years}), so the association between the forecast rows and subsequent returns is itself unstable during training.\par}
+
+\input{tab_byagent}
+\input{tab_policy}
+
+\subsection{Transaction-cost sensitivity}\label{subsec:cost}
+
+{\color{blue}Table~\ref{tab:cost} reports the comparison between the MGAT and naive agents under all seven cost settings. Because the policies trade 4.6--9.7\% of the portfolio per day, higher costs lower all Sharpe ratios: from F0 to F4 the mean Sharpe ratio of the MGAT agents decreases from 0.61 to 0.38 in banking and from 1.25 to 1.08 in healthcare. Across the eight combinations of forecast source and sector, moving from F0 to the baseline setting F1 lowers the mean annualised return by a median of 1.8 percentage points (range 0.9--2.5), lowers the mean Sharpe ratio by 0.06 (0.05--0.09), and raises the mean maximum drawdown by 0.2 percentage points; at a 20~bp commission (F4), these changes are 5.8 (3.0--7.9) percentage points, 0.20 (0.17--0.28), and 0.6 (0.4--0.7) percentage points. The Sharpe ratio of each of the 200 policies decreases monotonically from F0 to F4. The differences between sources change little with costs (banking $-0.041$ to $-0.037$; healthcare 0.033 to 0.064). The healthcare difference increases slightly with costs because the MGAT agents trade less (8.4\% per day, compared with 9.7\% for the naive agents), but every interval includes zero.\par}
+
+\input{tab_cost}
+
+\subsection{Forecast-source ablation}\label{subsec:ablation}
+
+{\color{blue}Table~\ref{tab:ablation_ppo} compares PPO agents (seeds 1--5) that observe forecasts from the alternative graph encoders. The Sharpe ratios of the seven sources lie within 0.50--0.55 in banking and 1.15--1.23 in healthcare. MGAT exceeds none of them by more than 0.005, and the GCN, graph-free, and ridge sources in banking and the no-cross-stock source in healthcare have higher Sharpe ratios, with 90\% intervals of the paired differences that exclude zero. With PPO, which stays close to equal weighting (Table~\ref{tab:policy}), the choice of graph encoder therefore has little effect on portfolio outcomes, in line with the small differences in IC$_2$ between the encoders.\par}
+
+\input{tab_ablation}
+
+\subsection{Using the forecasts directly}\label{subsec:rules}
+
+{\color{blue}To separate the information in the forecasts from the policy learner, Table~\ref{tab:forecast_rules} reports rules that hold, in equal weights, the three stocks with the highest $\hat q_t$, executed at the close of $t+1$. These rules are concentrated and replace 66--142\% of the account per day.
+
+Without costs, the MGAT rule in healthcare attains a Sharpe ratio of 1.48 and a maximum drawdown of 12.8\%, compared with 1.25 and 19.1\% for daily equal weighting; the ridge and no-cross-stock rules attain 1.47 and 1.64. In banking, the MGAT rule attains 0.72, compared with 0.62. Under F1, the turnover costs reverse these differences: the MGAT rule attains 1.04 in healthcare and $-0.54$ in banking. In an exploratory block bootstrap, the frictionless difference in healthcare between the MGAT rule and equal weighting (0.23) has a 90\% interval of $[-0.73, 1.04]$, which reflects the variability of a concentrated three-stock portfolio over one year. The forecasts therefore carry economic information that a ranking rule can extract before costs, but extracting it requires more turnover than proportional costs of a few basis points allow.\par}
+
+\input{tab_rules}
+
+%%POSTHOC%%
+
+\subsection{Development of the forecaster}\label{subsec:history}
+
+{\color{blue}The forecaster evaluated here is the outcome of a documented sequence of designs, all of which are archived in the code repository. The audit made during this revision showed that the forecaster of the original submission used valuation ratios of the forecast day as inputs. After correction, the multi-relation encoder of the original submission (MGNN) forecasted high and low prices more accurately than previous-day values but had no rank information at the tradable horizon, and agents whose training observations were built from its forecasts did not differ significantly from agents trained on observed prices in nine of ten agent--sector comparisons. We then trained all encoders with the ranking-aware objective of Section~\ref{subsec:objective} and fixed, before training, a gate on the development years 2022--2023 that required the MGNN encoder to rank the tradable return significantly and at least as well as the graph-free and linear comparators. The MGNN encoder failed this gate in both sectors (IC$_2$ $-0.011$ in banking and 0.012 in healthcare), and the evaluation of that design was stopped without using later data. Among the encoders that propagate information across stocks, graph attention ranked the tradable return best in both sectors, and it became the forecaster of the present protocol (Section~\ref{subsec:objective}). The 2025 evaluation was registered after these development steps and before the 2025 data were collected.\par}
+
+\subsection{Computational cost}\label{subsec:compute}
+
+{\color{blue}All experiments ran on one laptop CPU (Intel Core i7-12700H, 14 cores, 20 threads) without a GPU. Training one MGAT forecaster takes 1--3 minutes; the 15 forecasters of one sector and fold (five encoders, three seeds) take 17--23 minutes with nine threads. With 16 single-threaded RL processes in parallel, the median training time per policy is about 1 minute for PPO and A2C, 25 minutes for TD3, 42 minutes for SAC, and 66 minutes for DDPG, dominated by the off-policy updates; the 230 policies required 94 CPU-hours. Evaluating one policy on one year takes less than one second, and a daily decision, including the forecast, takes a few milliseconds, so inference cost is negligible for daily rebalancing.\par}

@@ -1,0 +1,15 @@
+\begin{table*}[!t]\centering\small\color{blue}
+\caption{Sharpe ratio in 2025 (F1) by agent: mean over five seeds for the naive and MGAT sources, and the paired difference with its 90\% block-bootstrap interval (block length 10).}
+\label{tab:byagent}
+\setlength{\tabcolsep}{4pt}
+\resizebox{\ifdim\width>\textwidth\textwidth\else\width\fi}{!}{%
+\begin{tabular}{lrrrrrrrr}\toprule
+ & \multicolumn{4}{c}{Banking} & \multicolumn{4}{c}{Healthcare} \\ \cmidrule(lr){2-5}\cmidrule(lr){6-9}
+Agent & Naive & MGAT & $\Delta$SR & 90\% interval & Naive & MGAT & $\Delta$SR & 90\% interval \\ \midrule
+PPO & 0.52 & 0.50 & $-$0.012 & [$-$0.055, 0.030] & 1.17 & 1.16 & $-$0.015 & [$-$0.069, 0.033] \\
+A2C & 0.55 & 0.54 & $-$0.008 & [$-$0.067, 0.043] & 1.25 & 1.24 & $-$0.010 & [$-$0.140, 0.128] \\
+SAC & 0.60 & 0.62 & 0.021 & [$-$0.007, 0.047] & 1.12 & 1.22 & 0.103 & [0.040, 0.170] \\
+TD3 & 0.70 & 0.52 & $-$0.180 & [$-$0.437, 0.051] & 1.08 & 1.22 & 0.140 & [$-$0.186, 0.501] \\
+DDPG & 0.55 & 0.53 & $-$0.019 & [$-$0.179, 0.154] & 1.15 & 1.14 & $-$0.003 & [$-$0.212, 0.249] \\
+\bottomrule\end{tabular}}
+\end{table*}

@@ -1,0 +1,32 @@
+\begin{table*}[!t]\centering\small\color{blue}
+\caption{Post-hoc portfolio analyses in 2025 (not part of the registered tests). Panel A: allocation baselines with the same ledger and costs (F0 without costs; F1 baseline costs); minimum variance uses the 252-day covariance of the RL state. Panel B: Sharpe ratios on the days with above- and below-median trailing 20-day volatility of daily equal weighting, mean over the 25 MGAT and 25 naive policies (F1), and the paired difference with its 90\% block-bootstrap interval. Panel C: PPO agents (seeds 1--5, F1) with one hyperparameter changed; registered: learning rate $10^{-3}$, $\gamma=0.99$.}
+\label{tab:posthoc_port}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\ifdim\width>\textwidth\textwidth\else\width\fi}{!}{%
+\begin{tabular}{lrrrrrrrrrr}\toprule
+\multicolumn{11}{l}{\textit{Panel A: allocation baselines}} \\
+ & \multicolumn{5}{c}{Banking} & \multicolumn{5}{c}{Healthcare} \\ \cmidrule(lr){2-6}\cmidrule(lr){7-11}
+Strategy & SR (F0) & AR (\%) & SR & MDD (\%) & Turn. (\%) & SR (F0) & AR (\%) & SR & MDD (\%) & Turn. (\%) \\ \midrule
+Equal weight, daily & 0.62 & 8.4 & 0.61 & 15.5 & 1.0 & 1.25 & 37.6 & 1.23 & 19.1 & 1.8 \\
+Minimum variance, monthly & 1.29 & 19.9 & 1.27 & 13.8 & 1.7 & 1.20 & 36.1 & 1.19 & 18.6 & 1.9 \\
+Minimum variance, daily & 1.31 & 19.3 & 1.25 & 13.4 & 4.5 & 1.22 & 34.5 & 1.19 & 17.0 & 4.1 \\
+Inverse volatility, monthly & 0.67 & 9.3 & 0.66 & 15.1 & 0.6 & 1.21 & 36.3 & 1.20 & 19.5 & 0.8 \\
+MGAT agents (mean) & 0.61 & 7.4 & 0.54 & 15.6 & 5.6 & 1.25 & 36.8 & 1.20 & 18.9 & 8.4 \\
+Naive agents (mean) & 0.65 & 8.1 & 0.58 & 15.9 & 5.8 & 1.21 & 34.7 & 1.15 & 19.6 & 9.7 \\
+\midrule
+\multicolumn{11}{l}{\textit{Panel B: volatility regimes within 2025}} \\
+ & \multicolumn{5}{c}{Banking} & \multicolumn{5}{c}{Healthcare} \\ \cmidrule(lr){2-6}\cmidrule(lr){7-11}
+Regime & EW & MGAT & Naive & $\Delta$SR & 90\% interval & EW & MGAT & Naive & $\Delta$SR & 90\% interval \\ \midrule
+High volatility & 0.85 & 0.80 & 0.80 & $-$0.008 & [$-$0.115, 0.087] & 0.88 & 0.83 & 0.84 & $-$0.011 & [$-$0.135, 0.133] \\
+Low volatility & 0.39 & 0.31 & 0.38 & $-$0.068 & [$-$0.144, 0.004] & 1.81 & 1.76 & 1.65 & 0.107 & [$-$0.065, 0.267] \\
+\midrule
+\multicolumn{11}{l}{\textit{Panel C: PPO hyperparameter sensitivity}} \\
+ & \multicolumn{5}{c}{Banking} & \multicolumn{5}{c}{Healthcare} \\ \cmidrule(lr){2-6}\cmidrule(lr){7-11}
+Setting & MGAT & Naive & $\Delta$SR & 90\% interval & Higher & MGAT & Naive & $\Delta$SR & 90\% interval & Higher \\ \midrule
+Registered & 0.50 & 0.52 & $-$0.012 & [$-$0.055, 0.030] & 2/5 & 1.16 & 1.17 & $-$0.015 & [$-$0.069, 0.033] & 1/5 \\
+Learning rate $3\times10^{-4}$ & 0.57 & 0.57 & $-$0.004 & [$-$0.022, 0.015] & 3/5 & 1.21 & 1.20 & 0.014 & [$-$0.012, 0.044] & 4/5 \\
+Learning rate $3\times10^{-3}$ & 0.48 & 0.48 & 0.004 & [$-$0.089, 0.095] & 3/5 & 1.20 & 1.16 & 0.039 & [$-$0.067, 0.151] & 5/5 \\
+$\gamma=0.9$ & 0.51 & 0.50 & 0.006 & [$-$0.033, 0.044] & 3/5 & 1.17 & 1.16 & 0.011 & [$-$0.067, 0.089] & 1/5 \\
+$\gamma=0.999$ & 0.53 & 0.46 & 0.066 & [0.020, 0.109] & 2/5 & 1.18 & 1.14 & 0.038 & [$-$0.019, 0.108] & 2/5 \\
+\bottomrule\end{tabular}}
+\end{table*}

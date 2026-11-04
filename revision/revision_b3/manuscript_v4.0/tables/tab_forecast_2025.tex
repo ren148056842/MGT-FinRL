@@ -1,0 +1,16 @@
+\begin{table*}[!t]\centering\small\color{blue}
+\caption{Forecast accuracy in the evaluation year 2025 (fold 2025: trained on 2018--2023 targets, early-stopped on 2024). High, Low, Close: change in the root mean squared error of the next-day log high, low, and close relative to the previous-day values (\%; negative values are improvements). IC$_2$: mean daily Spearman correlation between the predicted and realised return from the close of $t+1$ to the close of $t+2$, with its $t$-statistic (242 days). Ridge forecasts only this return. Means of three seeds.}
+\label{tab:forecast_eval}
+\setlength{\tabcolsep}{4pt}
+\resizebox{\ifdim\width>\textwidth\textwidth\else\width\fi}{!}{%
+\begin{tabular}{lrrrrrrrr}\toprule
+ & \multicolumn{4}{c}{Banking} & \multicolumn{4}{c}{Healthcare} \\ \cmidrule(lr){2-5}\cmidrule(lr){6-9}
+Forecaster & High & Low & Close & IC$_2$ ($t$) & High & Low & Close & IC$_2$ ($t$) \\ \midrule
+MGAT & $-$18.9 & $-$18.9 & +6.1 & 0.014 (0.7) & $-$15.5 & $-$28.5 & +0.5 & 0.052 (2.3) \\
+GCN & $-$19.7 & $-$18.1 & +5.4 & 0.025 (1.3) & $-$15.8 & $-$29.9 & +0.4 & 0.053 (2.4) \\
+No cross-stock & $-$19.8 & $-$19.8 & +2.5 & 0.032 (1.7) & $-$15.7 & $-$28.2 & +1.2 & 0.044 (2.1) \\
+MGNN & $-$14.9 & $-$18.9 & +4.1 & 0.000 (0.0) & $-$14.5 & $-$27.4 & +1.9 & 0.038 (1.8) \\
+Graph-free & $-$20.2 & $-$20.4 & +0.2 & 0.027 (1.3) & $-$14.8 & $-$27.4 & +0.1 & 0.047 (2.1) \\
+Ridge & -- & -- & -- & $-$0.030 ($-$1.6) & -- & -- & -- & 0.026 (1.2) \\
+\bottomrule\end{tabular}}
+\end{table*}

@@ -1,0 +1,18 @@
+\begin{table*}[!t]\centering\small\color{blue}
+\caption{Post-hoc forecaster ablation (not part of the registered tests). Each variant differs from MGAT only in the stated respect and is trained in the same four folds with seeds 1--3. IC$_2$: mean daily rank correlation of the predicted and realised tradable return (Eq.~\eqref{eq:ic2}), with its $t$-statistic for 2025; 2022--23: mean of the two development years. High, Low: change in the RMSE of the next-day log high and low in 2025 relative to the previous-day values (\%). Pairs: admissible ordered stock pairs (\%).}
+\label{tab:xablation}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\ifdim\width>\textwidth\textwidth\else\width\fi}{!}{%
+\begin{tabular}{lrrrrrrrrrrrr}\toprule
+ & \multicolumn{6}{c}{Banking} & \multicolumn{6}{c}{Healthcare} \\ \cmidrule(lr){2-7}\cmidrule(lr){8-13}
+Forecaster & Pairs & 2022--23 & 2024 & 2025 ($t$) & High & Low & Pairs & 2022--23 & 2024 & 2025 ($t$) & High & Low \\ \midrule
+MGAT (registered runs) & 92 & 0.057 & $-$0.007 & 0.014 (0.7) & $-$18.9 & $-$18.9 & 82 & 0.018 & 0.005 & 0.052 (2.3) & $-$15.5 & $-$28.5 \\
+without Kendall layer & 75 & 0.048 & 0.008 & 0.021 (1.1) & $-$18.9 & $-$18.9 & 36 & 0.011 & 0.015 & 0.064 (3.2) & $-$15.3 & $-$28.2 \\
+without Q\&A layer & 90 & 0.029 & 0.004 & 0.012 (0.6) & $-$18.0 & $-$18.5 & 82 & 0.020 & 0.011 & 0.051 (2.3) & $-$15.4 & $-$28.6 \\
+without shareholder layer & 92 & 0.032 & 0.002 & 0.008 (0.4) & $-$18.1 & $-$18.5 & 82 & 0.020 & 0.011 & 0.051 (2.3) & $-$15.4 & $-$28.6 \\
+all pairs admissible & 100 & 0.016 & 0.000 & 0.003 (0.1) & $-$18.2 & $-$18.9 & 100 & 0.017 & 0.051 & 0.057 (2.5) & $-$15.4 & $-$28.0 \\
+one GAT layer (64) & 92 & 0.041 & 0.013 & 0.002 (0.1) & $-$19.7 & $-$17.1 & 82 & 0.012 & 0.035 & 0.065 (3.0) & $-$15.5 & $-$29.3 \\
+two GAT layers (32, 64) & 92 & 0.002 & 0.012 & 0.015 (0.7) & $-$16.6 & $-$18.0 & 82 & 0.026 & 0.016 & 0.064 (3.1) & $-$15.0 & $-$29.2 \\
+two Transformer blocks & 92 & 0.034 & 0.036 & 0.008 (0.4) & $-$19.7 & $-$20.3 & 82 & 0.013 & 0.019 & 0.044 (2.0) & $-$15.0 & $-$28.9 \\
+\bottomrule\end{tabular}}
+\end{table*}

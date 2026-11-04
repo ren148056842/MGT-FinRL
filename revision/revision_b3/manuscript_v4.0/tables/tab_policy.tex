@@ -1,0 +1,18 @@
+\begin{table*}[!t]\centering\small\color{blue}
+\caption{Behaviour of the 2025 policies (F1; mean over five seeds; descriptive, not part of the registered tests). Active share: half the $L_1$ distance between the daily target weights and equal weights (0 for equal weighting). Loading: mean daily Spearman correlation between the weights executed at the close of $t+1$ and the MGAT forecast $\hat q_t$; for the naive agents, which do not observe $\hat q_t$, it serves as a reference. Weight IC: mean daily Spearman correlation between the executed weights and the realised return $q_t$.}
+\label{tab:policy}
+\setlength{\tabcolsep}{3.5pt}
+\resizebox{\ifdim\width>\textwidth\textwidth\else\width\fi}{!}{%
+\begin{tabular}{lrrrrrrrrrrrr}\toprule
+ & \multicolumn{6}{c}{Banking} & \multicolumn{6}{c}{Healthcare} \\ \cmidrule(lr){2-7}\cmidrule(lr){8-13}
+ & \multicolumn{2}{c}{Active share} & \multicolumn{2}{c}{Loading} & \multicolumn{2}{c}{Weight IC} & \multicolumn{2}{c}{Active share} & \multicolumn{2}{c}{Loading} & \multicolumn{2}{c}{Weight IC} \\
+Agent & Naive & MGAT & Naive & MGAT & Naive & MGAT & Naive & MGAT & Naive & MGAT & Naive & MGAT \\ \midrule
+PPO & 0.08 & 0.06 & $-$0.010 & 0.005 & 0.007 & $-$0.001 & 0.07 & 0.07 & $-$0.004 & 0.000 & $-$0.004 & $-$0.002 \\
+A2C & 0.11 & 0.12 & 0.043 & $-$0.025 & 0.001 & 0.002 & 0.12 & 0.15 & 0.037 & $-$0.064 & 0.002 & $-$0.003 \\
+SAC & 0.02 & 0.04 & $-$0.010 & $-$0.036 & 0.015 & 0.011 & 0.09 & 0.03 & 0.041 & $-$0.014 & $-$0.004 & 0.005 \\
+TD3 & 0.37 & 0.37 & $-$0.001 & $-$0.080 & 0.008 & $-$0.003 & 0.40 & 0.32 & 0.093 & $-$0.055 & 0.003 & 0.009 \\
+DDPG & 0.34 & 0.34 & $-$0.029 & $-$0.071 & 0.001 & 0.001 & 0.34 & 0.38 & 0.006 & $-$0.005 & 0.003 & $-$0.005 \\
+\midrule
+All & 0.18 & 0.19 & $-$0.001 & $-$0.041 & 0.007 & 0.002 & 0.20 & 0.19 & 0.035 & $-$0.027 & 0.000 & 0.001 \\
+\bottomrule\end{tabular}}
+\end{table*}

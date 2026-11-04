@@ -1,0 +1,25 @@
+\begin{table*}[!t]\centering\small\color{blue}
+\caption{Forecast-ranking rules in 2025: equal weights on the three stocks with the highest predicted return from the close of $t+1$ to the close of $t+2$, executed at the close of $t+1$, compared with daily equal weighting.}
+\label{tab:forecast_rules}
+\setlength{\tabcolsep}{4pt}
+\resizebox{\ifdim\width>\textwidth\textwidth\else\width\fi}{!}{%
+\begin{tabular}{llrrrrrr}\toprule
+ & & \multicolumn{3}{c}{F0 (no costs)} & \multicolumn{3}{c}{F1} \\ \cmidrule(lr){3-5}\cmidrule(lr){6-8}
+Sector & Strategy & AR (\%) & SR & MDD (\%) & AR (\%) & SR & MDD (\%) \\ \midrule
+Banking & Equal weight, daily & 8.6 & 0.62 & 15.5 & 8.4 & 0.61 & 15.5 \\
+ & MGAT & 11.4 & 0.72 & 18.2 & $-$10.1 & $-$0.54 & 24.7 \\
+ & GCN & 19.9 & 1.27 & 13.8 & $-$0.5 & 0.05 & 17.3 \\
+ & No cross-stock & 15.7 & 0.97 & 19.3 & $-$7.9 & $-$0.42 & 26.7 \\
+ & MGNN & 12.9 & 0.83 & 17.7 & $-$3.9 & $-$0.17 & 20.3 \\
+ & Graph-free & 1.3 & 0.16 & 23.3 & $-$13.5 & $-$0.71 & 26.2 \\
+ & Ridge & 6.7 & 0.47 & 19.0 & $-$16.2 & $-$0.97 & 23.5 \\
+\midrule
+Healthcare & Equal weight, daily & 38.1 & 1.25 & 19.1 & 37.6 & 1.23 & 19.1 \\
+ & MGAT & 45.9 & 1.48 & 12.8 & 28.7 & 1.04 & 15.0 \\
+ & GCN & 36.9 & 1.22 & 19.2 & 16.7 & 0.68 & 21.8 \\
+ & No cross-stock & 59.4 & 1.64 & 18.4 & 39.0 & 1.21 & 20.0 \\
+ & MGNN & 26.2 & 0.94 & 15.9 & 5.3 & 0.32 & 21.2 \\
+ & Graph-free & 33.6 & 1.19 & 17.7 & 17.6 & 0.73 & 18.8 \\
+ & Ridge & 49.4 & 1.47 & 14.9 & 14.2 & 0.59 & 18.3 \\
+\bottomrule\end{tabular}}
+\end{table*}

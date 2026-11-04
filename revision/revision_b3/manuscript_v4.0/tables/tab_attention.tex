@@ -1,0 +1,15 @@
+\begin{table}[!t]\centering\small\color{blue}
+\caption{Post-hoc analysis of the graph-attention coefficients of MGAT (fold 2025, three seeds, last day of every 2025 input window). Self: mean weight on the stock itself (uniform attention in parentheses). SH, QA, KD only: mean attention on admissible pairs linked by the shareholder graph, by the Q\&A graph, or only by the Kendall graph, relative to the mean over all admissible pairs (1 = no preference). Entropy: relative to uniform attention. CV: median day-to-day coefficient of variation of the coefficients. Seeds: mean correlation of the average coefficients between seeds.}
+\label{tab:attention}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llrrrrrrr}\toprule
+Sector & Layer & Self & SH & QA & KD only & Entropy & CV & Seeds \\ \midrule
+Banking & 1 & 0.075 (0.074) & 1.00 & 0.98 & 1.01 & 0.94 & 0.25 & 0.52 \\
+ & 2 & 0.074 (0.074) & 0.97 & 0.99 & 1.06 & 1.00 & 0.02 & 0.99 \\
+ & 3 & 0.074 (0.074) & 0.97 & 0.99 & 1.06 & 1.00 & 0.00 & 1.00 \\
+\midrule
+Healthcare & 1 & 0.080 (0.087) & 1.10 & 1.24 & 0.94 & 0.82 & 0.33 & 0.41 \\
+ & 2 & 0.089 (0.087) & 0.95 & 0.94 & 1.04 & 1.00 & 0.03 & 0.98 \\
+ & 3 & 0.087 (0.087) & 0.95 & 0.94 & 1.04 & 1.00 & 0.01 & 1.00 \\
+\bottomrule\end{tabular}
+\end{table}

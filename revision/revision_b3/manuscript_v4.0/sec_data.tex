@@ -1,0 +1,74 @@
+\section{Experimental Settings and Performance Analysis}\label{sec5}
+
+\subsection{Datasets and backtesting protocol}
+To evaluate the proposed MGAT-FinRL framework, we conduct backtesting on two equity sectors that represent markedly different market structures and information environments. The first sector consists of 15 publicly listed Chinese banks, a relatively stable and regulation-sensitive sector. The second sector contains 15 healthcare innovation stocks listed on the Shanghai and Shenzhen stock exchanges, a growth-oriented sector with higher idiosyncratic volatility. The two-sector design allows a comparison of model behaviour across distinct sectoral regimes.
+
+\paragraph{Data sources and features}
+{\color{blue}For each stock, we collect daily high, low, and closing prices, the daily trading value (the amount traded in CNY), and the valuation ratios PE (trailing twelve months), PB, PS, and PCF from January 2018 to December 2025. Prices are unadjusted, and the ledger neither credits cash dividends nor adjusts share quantities for corporate actions; the reported performance therefore excludes dividend income (Section~\ref{sec:limitations}).
+
+The 2018--2024 panels are those of the original study. The 2025 observations were added for this revision. Daily prices and trading values were downloaded from Tushare (\texttt{daily}). The 2025 valuation ratios were rebuilt to match the definitions of the existing panels, which were identified on the 2024 overlap: PE and PB from the daily valuation records of the Eastmoney data centre, and PS and PCF as total market value divided by, respectively, total operating income and the net increase in cash and cash equivalents of the previous fiscal year, from the annual statements in Eastmoney F10. Before any model used a 2025 observation, the downloads were checked against the existing panels over all 242 trading days of 2024: high, low, and closing prices and trading values agree exactly on all 3{,}630 stock-days in each sector; the rebuilt PE, PS, and PCF agree with a median absolute relative difference below $10^{-4}$ and PB with a median difference of 0.3\%, with identical signs throughout. The extended panels contain the 2024 rows unchanged and 243 trading days of 2025.\par}
+
+In addition, we assemble heterogeneous relational information to construct the graphs of Section~\ref{Heterogeneous relation graphs}: top-ten shareholder holdings for the 15 firms of each sector and board-secretary investor-relations Q\&A records.
+{\color{blue}
+The shareholder data are static snapshots exported from Wind; their record coverage is specified in Section~\ref{Heterogeneous relation graphs}. The Q\&A corpus contains 6{,}021 banking records and 7{,}868 healthcare records. Table~\ref{tab:timeline} documents their source periods, availability, and timestamp limitations.
+\par}
+
+\paragraph{Stock universes}
+{\color{blue}
+The fixed stock lists are provided in Appendix~\ref{app:universe}. The banking universe comprises six large state-owned banks and nine listed national joint-stock commercial banks, all listed by the end of 2019. The healthcare universe was compiled from Wind and covers medical services, diagnostics, eye care, and contract research; it is not an index constituent list. All healthcare stocks were listed before 2018, and all 30 firms remained listed through 2025, which introduces survivorship bias. PSBC and CZB listed on December~10 and November~26,~2019, respectively; their pre-listing placeholder observations are excluded as forecasting targets, with input features set to the training mean, and the banking market history used for RL states starts on December~10,~2019. Stock-days without trading (three in healthcare in 2025) are excluded as forecasting targets and carried at the previous close in the backtest.
+\par}
+
+\paragraph{Training, selection, and evaluation periods}
+\label{subsec:splits}
+{\color{blue}
+Forecasting uses four expanding-window folds with test years 2022, 2023, 2024, and 2025. Each fold is trained on origins from 2018 onwards whose two targets fall no later than the end of the second year before the test year, early-stopped on the intervening year, and tested on the origins whose next trading day lies in the test year; standardisation uses training rows only. A forecast made at the close of day $t$ is therefore always produced by a model that was fitted and stopped on data ending before the year of day $t+1$.
+
+The RL periods are aligned with these folds. Agents are trained on January~4, 2022--December~29, 2023 (484 trading days), using the forecasts of folds 2022 and 2023 in the state. For each agent and seed, checkpoints saved at 20\%, 40\%, 60\%, 80\%, and 100\% of the training budget are compared on 2024 (242 days, forecasts of fold 2024), and the checkpoint with the highest net Sharpe ratio under cost setting F1 is retained. The selected policies are frozen and evaluated once on January~2--December~31, 2025 (243 days), with forecasts of fold 2025 and under all cost settings. Each agent is trained with seeds 1--5, and all agents, seeds, and cost settings are reported.
+
+The years play distinct roles. 2022 and 2023 are development years: the forecaster was chosen on them (Section~\ref{subsec:objective}). 2024 was examined in earlier versions of this study and serves here only for checkpoint selection. 2025 was not used in any earlier analysis; its data were downloaded after the protocol of Section~\ref{subsec:hypotheses} had been fixed.
+\par}
+
+\paragraph{Pre-registered hypotheses}\label{subsec:hypotheses}
+{\color{blue}
+The protocol, forecaster, forecast sources, agents, budgets, seeds, selection rule, cost settings, and tests were committed to the public code repository before any 2025 observation was downloaded, together with two dated amendments that concern only the source of the 2025 valuation ratios. The outcome is the annualised net Sharpe ratio in 2025 under F1, compared in pairs with identical agent and seed over the 25 policies of each source (five agents $\times$ five seeds):
+\begin{itemize}
+\item H1 (primary): the MGAT agents attain a higher Sharpe ratio than the naive agents, in each sector (Holm correction across the two sectors);
+\item H2 (secondary): the MGAT agents attain a higher Sharpe ratio than the graph-free Transformer agents (H2a) and than the ridge agents (H2b) (Holm correction within each sector over H1, H2a, and H2b);
+\item H3 (forecasting): the 2025 IC$_2$ of MGAT is positive in each sector (one-sided $t$-test on daily coefficients, Holm correction across sectors).
+\end{itemize}
+Differences in Sharpe ratio are tested with a paired circular block bootstrap of daily returns (block length 10 days, with 5 and 20 as checks; 2{,}000 resamples; the same resampled dates for all policies), using one-sided centred $p$-values at the 5\% level. The GCN, no-cross-stock, and MGNN forecasters enter PPO agents with seeds 1--5 as a descriptive ablation.
+\par}
+
+\paragraph{Information timeline}
+{\color{blue}
+Table~\ref{tab:timeline} summarises data availability and execution timing. All three relation graphs use information that ends by June 2023: the Kendall graph uses trading values from January 2, 2018 to December 30, 2022, the shareholder snapshots date from 2022--2023, and the Q\&A records from 2018--2022. They therefore contain no information from the selection year 2024 or the evaluation year 2025. They do overlap the test years of folds 2022 and 2023, so the forecasts that enter the RL training states are retrospective in this respect (Section~\ref{sec:limitations}).
+\par}
+
+\begin{table*}[!t]
+\centering
+\small
+\caption{{\color{blue}Data availability and forecasting--trading timeline.}}
+\label{tab:timeline}
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.12}
+\color{blue}
+\begin{tabular}{@{}p{2.3cm}p{3.3cm}p{3.3cm}p{3.5cm}@{}}
+\toprule
+Input or stage & Source period & Availability or protocol cutoff & Use \\
+\midrule
+Daily market data & Trading day $t$ (2018--2025) & After the close of $t$ & Forecasting features; RL states; accounting \\
+Valuation ratios & Trading day $t$ (2018--2025) & After the close of $t$ & Forecasting features only \\
+Top-ten shareholders & Healthcare: year-end 2022; banking: lists exported in June 2023 & Healthcare: reports released in 2023; banking: release dates not verified & Static $\mathbf{A}_{\mathrm{SH}}$ \\
+Investor-relations Q\&A & Records dated 2018--2022 & Archived record timestamps & Static $\mathbf{A}_{\mathrm{QA}}$ \\
+Trading-value Kendall graph & January 2, 2018--December 30, 2022 & After the source window ends & Static $\mathbf{A}_{\mathrm{KD}}$ \\
+Forecasting folds & Test years 2022, 2023, 2024, 2025 & Fitted and early-stopped before the test year & 2022--2023: RL training states; 2024: selection states; 2025: evaluation states \\
+RL training & January 4, 2022--December 29, 2023 & -- & Five agents, seeds 1--5, cost setting F1 \\
+Checkpoint selection & 2024 & After the 2024 close & One checkpoint per agent and seed (F1) \\
+Portfolio evaluation & 2025 & State after the close of $t$; execution at the close of $t+1$ & Frozen policies, evaluated once; F0--F6 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+{\color{blue}
+For the March~3,~2025 forecast origin (a Monday), MGAT forecasts the prices of March~4 and~5 from the 20 trading days ending on March~3. The RL state uses these forecasts and observed data through the March~3 close; the weights chosen after that close are executed at the March~4 close, and the reward of Eq.~\eqref{eq:rl_reward} for March~4 reflects the return on the existing holdings and the execution costs, while the new positions earn the return from the March~4 close onwards, which is the return $q$ ranked by the forecaster.
+\par}

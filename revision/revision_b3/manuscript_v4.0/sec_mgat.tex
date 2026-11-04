@@ -1,0 +1,26 @@
+\subsection{Multi-relational graph attention (MGAT)}\label{subsec3}
+
+{\color{blue}MGAT first encodes cross-stock information with graph attention \citep{Velickovic2018GAT} over the relation graphs of Section~\ref{Heterogeneous relation graphs}. Because the three graphs differ in edge semantics and numerical scale, they are combined into one edge set rather than into one weighted operator. Let $\mathbf{A}_r$, $r\in\{\mathrm{SH},\mathrm{QA},\mathrm{KD}\}$, denote the static relation matrices and define
+\begin{equation}
+\bar{\mathbf{A}}=\sum_{r\in\{\mathrm{SH},\mathrm{QA},\mathrm{KD}\}}\omega_r\,\frac{\max(\mathbf{A}_r,0)}{\max_{i\neq j}\,a_{r,ij}},\qquad \bar a_{ii}=0,
+\label{eq:Afused_re}
+\end{equation}
+where the maximum is taken elementwise, so negative Kendall correlations are excluded, and $\omega_r\in\{0,1\}$ activates relation $r$ ($\omega_r=1$ for all relations in MGAT). The neighbourhood of stock $i$ is
+\begin{equation}
+\mathcal{N}(i)=\{\,j:\bar a_{ij}>0\,\}\cup\{i\}.
+\label{eq:neigh}
+\end{equation}
+The union of the three graphs covers 92\% of the ordered stock pairs in banking and 82\% in healthcare (minimum degree 6 and 4, respectively), so the relation graphs mainly determine which pairs are excluded, and attention determines the weight of each admissible neighbour. In both sectors, every shareholder edge is also a positive Kendall edge, and the Q\&A layer adds four ordered pairs in banking and none in healthcare; the edge set is therefore determined almost entirely by the trading-value graph, and the qualitative relations can influence the forecasts only to the extent that attention learns to favour the pairs they link (Section~\ref{subsec:posthoc}).
+
+Let $\mathbf{h}^{(k)}_{s,i}$ denote the representation of stock $i$ on day $s$ of the input window after $k$ layers, with $\mathbf{h}^{(0)}_{s,i}=\mathbf{x}_{s,i}\in\mathbb{R}^{F}$. Each graph-attention layer computes
+\begin{align}
+e^{(k)}_{s,ij}&=\mathrm{LeakyReLU}_{0.2}\!\left(\mathbf{a}_{k,1}^{\top}\mathbf{W}_k\mathbf{h}^{(k)}_{s,i}+\mathbf{a}_{k,2}^{\top}\mathbf{W}_k\mathbf{h}^{(k)}_{s,j}\right),\label{eq:gat_e}\\
+\alpha^{(k)}_{s,ij}&=\frac{\exp\big(e^{(k)}_{s,ij}\big)}{\sum_{l\in\mathcal{N}(i)}\exp\big(e^{(k)}_{s,il}\big)},\qquad j\in\mathcal{N}(i),\label{eq:gat_alpha}\\
+\mathbf{h}^{(k+1)}_{s,i}&=\mathrm{ELU}\!\left(\sum_{j\in\mathcal{N}(i)}\alpha^{(k)}_{s,ij}\,\mathbf{W}_k\mathbf{h}^{(k)}_{s,j}+\mathbf{b}_k\right),\label{eq:gat_h}
+\end{align}
+where $\mathbf{W}_k\in\mathbb{R}^{F_{k+1}\times F_k}$, $\mathbf{a}_{k,1},\mathbf{a}_{k,2}\in\mathbb{R}^{F_{k+1}}$, and $\mathbf{b}_k\in\mathbb{R}^{F_{k+1}}$ are trainable and shared across days and stocks. Equations~\eqref{eq:gat_e}--\eqref{eq:gat_h} instantiate the aggregate and combine operators of Eqs.~\eqref{eq:gnn_aggregate}--\eqref{eq:gnn_combine}: the attention coefficients $\alpha^{(k)}_{s,ij}$ depend on the features of both stocks on day $s$, so the weight of a related firm varies with market conditions, whereas a graph convolution applies the same weight on every day. MGAT uses $K=3$ single-head layers of widths 16, 32, and 64 and applies them to each day of the window, giving
+\[
+\mathbf{H}^{\mathrm{GAT}}_{s}=\big[\mathbf{h}^{(3)}_{s,1},\ldots,\mathbf{h}^{(3)}_{s,N}\big]^{\top}\in\mathbb{R}^{N\times C},\qquad C=64,\qquad s=t-T+1,\ldots,t .
+\]
+
+Three variants isolate the role of the relation graphs while keeping the remainder of the forecaster and its training unchanged: a graph-convolution encoder with the fixed symmetric-normalised operator $\mathbf{D}^{-1/2}(\bar{\mathbf{A}}+\mathbf{I})\mathbf{D}^{-1/2}$ and the same layer widths (GCN); an encoder with the same layers applied to each stock separately, which preserves the capacity of the graph branch without cross-stock propagation (no-cross-stock, NCS); and a Transformer without a graph branch (graph-free). The multi-relation encoder of the original submission, which propagated features with a learnable dense matrix $\mathbf{W}_M$ plus learnably weighted relation matrices, is retained as a fourth comparator (MGNN); MGAT contains no free cross-stock matrix, so cross-stock information can flow only along the relation edges.\par}

@@ -1,0 +1,16 @@
+\begin{table*}[!t]\centering\small\color{blue}
+\caption{Pre-registered tests in 2025 (F1). $\Delta$SR: mean paired difference in annualised Sharpe ratio over the 25 agent--seed pairs; 90\% interval and one-sided $p$-value from a paired circular block bootstrap of daily returns (block length 10; 2{,}000 resamples); $p_{5}$ and $p_{20}$: block lengths 5 and 20. Holm: H1 across sectors; H1--H2b within each sector.}
+\label{tab:paired_boot}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\ifdim\width>\textwidth\textwidth\else\width\fi}{!}{%
+\begin{tabular}{llrrrrrr}\toprule
+Sector & Hypothesis & $\Delta$SR & 90\% interval & $p$ & $p_{5}$ & $p_{20}$ & Holm $p$ \\ \midrule
+Banking & H1: MGAT $-$ Naive & $-$0.040 & [$-$0.108, 0.023] & 0.828 & 0.850 & 0.838 & 0.828\,/\,1.000 \\
+ & H2a: MGAT $-$ Graph-free & $-$0.016 & [$-$0.061, 0.029] & 0.707 & 0.710 & 0.711 & 1.000 \\
+ & H2b: MGAT $-$ Ridge & $-$0.011 & [$-$0.065, 0.041] & 0.627 & 0.622 & 0.636 & 1.000 \\
+\midrule
+Healthcare & H1: MGAT $-$ Naive & 0.043 & [$-$0.066, 0.164] & 0.275 & 0.267 & 0.262 & 0.549\,/\,0.280 \\
+ & H2a: MGAT $-$ Graph-free & 0.048 & [$-$0.001, 0.112] & 0.093 & 0.116 & 0.094 & 0.280 \\
+ & H2b: MGAT $-$ Ridge & 0.042 & [$-$0.013, 0.104] & 0.124 & 0.134 & 0.090 & 0.280 \\
+\bottomrule\end{tabular}}
+\end{table*}
