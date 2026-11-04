@@ -169,3 +169,22 @@ missing records after checking that best_policy.zip is byte-identical to the che
 highest 2024 validation Sharpe ratio (earliest on ties), the selection rule of section 4; the six
 TD3 tasks are trained with identical code, hyperparameters and seeds, three at a time; the single
 2025 evaluation and the registered analysis then run as planned (run_b3_stage3.ps1).
+
+## Addendum X (2026-11-04, after the registered 2025 evaluation; descriptive, not part of the registered tests)
+
+Requested by the reviewers (isolation of each relation layer; unrestricted inter-stock attention;
+interpretation of the learned relations). Nothing in this addendum changes the registered forecaster,
+forecast sources, agents, selection, or tests, and its results are reported in full whatever they show.
+
+1. Forecasting ablation of MGAT (B2_GAT_Transformer_R), with code, loss, seeds 1-3, folds 2022-2025 and
+   panels identical to the registered runs; only the admissible neighbours of graph attention change:
+   X1 without the Kendall layer, X2 without the Q&A layer, X3 without the shareholder layer, and X4 with all
+   ordered stock pairs admissible (unrestricted inter-stock attention). Measures: change in RMSE of h1, l1, c1
+   relative to the previous-day values, IC2 with t-statistic, and the daily IC2 difference MGAT minus variant
+   with a 95% circular block-bootstrap interval (block 10, 2000 resamples), for every test year.
+   No RL agent is trained on these forecasts.
+2. Attention analysis of the registered MGAT (fold 2025, seeds 1-3, the saved weights): coefficients of the
+   three graph-attention layers on the last day of every 2025 input window; self-weight, attention on pairs
+   linked by each relation relative to the average admissible neighbour, entropy relative to uniform
+   attention, day-to-day variability, agreement across seeds, and attention received by each firm.
+Code: b3x_ablation.py; launcher run_b3x.ps1 / 10_run_b3x.cmd; outputs forecasts_x/ and results_x/.
